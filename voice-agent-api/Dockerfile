@@ -10,8 +10,8 @@ COPY app.py .
 # Create documents directory
 RUN mkdir -p /data/documents
 
-# Copy frontend if it exists
-COPY frontend/ /app/frontend/ 2>/dev/null || true
+# Create frontend directory (will be mounted as volume at runtime)
+RUN mkdir -p /app/frontend
 
 CMD ["python", "app.py"]
 
