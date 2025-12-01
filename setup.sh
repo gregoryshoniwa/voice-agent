@@ -117,7 +117,7 @@ stop_existing_containers() {
 
 start_services() {
     print_info "Starting all services (this may take a few minutes)..."
-    $COMPOSE_CMD -f docker-compose.full.yaml --env-file supabase-project/.env up -d
+    $COMPOSE_CMD -f docker-compose.full.yaml --env-file supabase-project/.env up -d --build
     print_status "Services started"
 }
 
@@ -174,6 +174,11 @@ setup_database() {
         docker exec -i supabase-db psql -U postgres -d postgres < "$SCRIPT_DIR/supabase-project/volumes/db/conversations-setup.sql" 2>/dev/null || true
         print_status "Conversations tables created"
     fi
+    
+    # Restart RAG indexer to process any existing documents
+    print_info "Restarting RAG indexer to process documents..."
+    docker restart rag-indexer 2>/dev/null || true
+    print_status "RAG indexer restarted"
 }
 
 pull_ollama_models() {
