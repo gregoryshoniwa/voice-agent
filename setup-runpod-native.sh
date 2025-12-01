@@ -359,12 +359,16 @@ nohup python3 "$SCRIPT_DIR/rag_indexer_native.py" > /tmp/rag-indexer.log 2>&1 &
 RAG_PID=$!
 echo "    RAG Indexer PID: $RAG_PID"
 
+# Stop nginx if running (it uses port 80)
+service nginx stop 2>/dev/null || true
+pkill nginx 2>/dev/null || true
+
 # Start Voice Agent API
-echo -e "${BLUE}[i]${NC} Starting Voice Agent API on port 3001..."
+echo -e "${BLUE}[i]${NC} Starting Voice Agent API on port 80..."
 echo ""
 
 # Run in foreground so we can see logs
-python3 -m uvicorn voice_agent_native:app --host 0.0.0.0 --port 3001 --reload &
+python3 -m uvicorn voice_agent_native:app --host 0.0.0.0 --port 80 --reload &
 API_PID=$!
 
 sleep 3
@@ -375,9 +379,9 @@ echo -e "${CYAN}║${NC}  ${GREEN}✓ All Services Started!${NC}                
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${GREEN}Access URLs:${NC}"
-echo "  • Frontend:     http://localhost:3001"
-echo "  • API Docs:     http://localhost:3001/docs"
-echo "  • API Health:   http://localhost:3001/api/health"
+echo "  • Frontend:     http://localhost:80"
+echo "  • API Docs:     http://localhost:80/docs"
+echo "  • API Health:   http://localhost:80/api/health"
 echo "  • Ollama:       http://localhost:11434"
 echo ""
 echo -e "${GREEN}Default Login:${NC}"
@@ -391,7 +395,7 @@ echo ""
 echo -e "${GREEN}To stop services:${NC}"
 echo "  • Press Ctrl+C or run: ./stop-services.sh"
 echo ""
-echo -e "${BLUE}[i]${NC} Configure a public endpoint in RunPod for port 3001 to access externally"
+echo -e "${BLUE}[i]${NC} Configure a public endpoint in RunPod for port 80 to access externally"
 echo ""
 
 # Wait for API process
@@ -439,7 +443,7 @@ else
 fi
 
 # Check Voice Agent API
-if curl -s http://localhost:3001/api/health > /dev/null 2>&1; then
+if curl -s http://localhost:80/api/health > /dev/null 2>&1; then
     echo "✓ Voice Agent API: Running"
 else
     echo "✗ Voice Agent API: Not running"
@@ -454,7 +458,7 @@ fi
 
 echo ""
 echo "=== API Status ==="
-curl -s http://localhost:3001/api/status 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "API not responding"
+curl -s http://localhost:80/api/status 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "API not responding"
 STATUSEOF
 
 chmod +x "$SCRIPT_DIR/check-status.sh"
@@ -482,6 +486,6 @@ echo -e "${GREEN}Available AI Models:${NC}"
 ollama list 2>/dev/null || echo "  (Run 'ollama list' after starting)"
 echo ""
 echo -e "${YELLOW}Important:${NC}"
-echo "  Configure a public endpoint in RunPod dashboard for port 3001"
+echo "  Configure a public endpoint in RunPod dashboard for port 80"
 echo "  to access the application from your browser."
 echo ""
