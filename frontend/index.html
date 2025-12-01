@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Voice Agent</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <!-- Landing Page -->
+    <div id="landingPage" class="page active">
+        <div class="landing-container">
+            <div class="hero">
+                <h1>🎤 AI Voice Agent</h1>
+                <p class="tagline">Intelligent conversations powered by your documents</p>
+                <p class="description">Ask questions and get answers from your knowledge base using natural voice or text</p>
+                <button class="btn-primary" onclick="showLogin()">Get Started</button>
+            </div>
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon">🎯</div>
+                    <h3>RAG-Powered</h3>
+                    <p>Answers based on your documents</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🎤</div>
+                    <h3>Voice & Text</h3>
+                    <p>Ask questions naturally</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">💬</div>
+                    <h3>Conversation History</h3>
+                    <p>Review past interactions</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Page -->
+    <div id="loginPage" class="page">
+        <div class="login-container">
+            <div class="login-box">
+                <h2>Login</h2>
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" required autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" required autocomplete="current-password">
+                    </div>
+                    <div id="loginError" class="error-message"></div>
+                    <button type="submit" class="btn-primary btn-block">Login</button>
+                </form>
+                <button class="btn-link" onclick="showLanding()">← Back</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboardPage" class="page">
+        <div class="dashboard-container">
+            <header class="dashboard-header">
+                <h1>AI Voice Agent Dashboard</h1>
+                <button class="btn-secondary" onclick="logout()">Logout</button>
+            </header>
+            
+            <nav class="dashboard-nav">
+                <button class="nav-btn active" onclick="showSection('rag')">📄 RAG</button>
+                <button class="nav-btn" onclick="showSection('conversation')">💬 Conversation</button>
+            </nav>
+
+            <!-- RAG Section -->
+            <div id="ragSection" class="section active">
+                <div class="section-header">
+                    <h2>Document Management</h2>
+                    <button class="btn-primary" onclick="document.getElementById('fileInput').click()">
+                        📤 Upload Document
+                    </button>
+                    <input type="file" id="fileInput" accept=".pdf,.txt,.md" multiple style="display: none;" onchange="handleFileUpload(event)">
+                </div>
+                
+                <div id="uploadStatus" class="status-message"></div>
+                
+                <div class="documents-list">
+                    <div id="documentsList">
+                        <div class="loading">Loading documents...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conversation Section -->
+            <div id="conversationSection" class="section">
+                <div class="section-header">
+                    <h2>Conversation History</h2>
+                    <button class="btn-secondary" onclick="refreshConversations()">🔄 Refresh</button>
+                </div>
+                
+                <div class="conversations-list">
+                    <div id="conversationsList">
+                        <div class="loading">Loading conversations...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
