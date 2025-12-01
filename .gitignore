@@ -1,0 +1,37 @@
+# Supabase source repository (not needed - this is the full GitHub repo)
+supabase/
+
+# Environment files with secrets
+**/.env
+!**/.env.example
+
+# Docker volumes and data
+supabase-project/volumes/db/data/
+supabase-project/volumes/storage/
+
+# AI/ML service data
+documents/*
+!documents/.gitkeep
+piper/models/*
+!piper/models/.gitkeep
+
+# n8n workflows (keep structure, ignore user-specific configs)
+n8n-workflows/*.json.bak
+n8n-workflows/.n8n/
+
+# Frontend build files
+frontend/dist/
+frontend/node_modules/
+frontend/.next/
+frontend/build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+

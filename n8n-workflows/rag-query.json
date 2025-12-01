@@ -1,0 +1,73 @@
+{
+  "name": "RAG Query",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rag-query",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-rag-query",
+      "name": "Webhook - RAG Query",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "rag-query"
+    },
+    {
+      "parameters": {
+        "url": "http://voice-agent-api:3001/rag-query",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.body.query }}"
+            },
+            {
+              "name": "top_k",
+              "value": "={{ $json.body.top_k || 3 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-rag-query",
+      "name": "RAG Query API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - RAG Query": {
+      "main": [[{"node": "RAG Query API", "type": "main", "index": 0}]]
+    },
+    "RAG Query API": {
+      "main": [[{"node": "Respond to Webhook", "type": "main", "index": 0}]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
+

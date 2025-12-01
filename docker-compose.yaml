@@ -1,0 +1,54 @@
+version: '3'
+
+services:
+  n8n:
+    image: n8nio/n8n
+    container_name: n8n_automation
+    restart: always
+    # Expose the editor locally
+    ports:
+      - "5678:5678"
+    environment:
+
+      # Basic auth (optional)
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=changeme123
+
+      # Core URL / server config (local dev)
+      #- N8N_HOST=192.168.16.29
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_SECURE_COOKIE=false
+
+      # Other options
+      - N8N_COMMUNITY_PACKAGES_ALL=true
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+
+      # File permissions
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+
+      # Timezone
+      - GENERIC_TIMEZONE=Africa/Harare
+      - TZ=Africa/Harare
+      # Remove ngrok-specific settings:
+      # - N8N_EDITOR_BASE_URL=...
+      # - WEBHOOK_URL=...
+
+      # DNS options
+      - NODE_OPTIONS=--dns-result-order=ipv4first
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+    # Use the built-in tunnel by overriding the default command
+    # command: ["start","--tunnel"]
+    network_mode: bridge
+
+volumes:
+  n8n_data:
+
+networks:
+  default:
+    external: true
+    name: bridge
