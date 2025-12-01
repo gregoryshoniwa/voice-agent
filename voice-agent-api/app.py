@@ -67,7 +67,7 @@ DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
 class TranscribeRequest(BaseModel):
     audio_url: Optional[str] = None
-    audio_data: Optional[str] = None  # Base64 encoded audio
+    audio_data: Optional[str] = None
 
 
 class QueryRequest(BaseModel):
@@ -85,7 +85,7 @@ class ChatRequest(BaseModel):
 
 
 class VoiceChatRequest(BaseModel):
-    audio_data: str  # Base64 encoded audio
+    audio_data: str
     conversation_id: Optional[str] = None
 
 
@@ -93,21 +93,13 @@ class VoiceChatRequest(BaseModel):
 
 @app.get("/api/health")
 async def health():
-    """Health check endpoint"""
     return {"status": "ok", "service": "voice-agent-api"}
 
 
 @app.get("/api/status")
 async def status():
-    """Detailed status check"""
-    status_info = {
-        "api": "ok",
-        "supabase": "unknown",
-        "ollama": "unknown",
-        "whisper": "unknown"
-    }
+    status_info = {"api": "ok", "supabase": "unknown", "ollama": "unknown", "whisper": "unknown"}
     
-    # Check Supabase
     try:
         if supabase:
             supabase.table("documents").select("id").limit(1).execute()
@@ -115,7 +107,6 @@ async def status():
     except Exception as e:
         status_info["supabase"] = f"error: {str(e)[:50]}"
     
-    # Check Ollama
     try:
         resp = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
         if resp.status_code == 200:
@@ -123,10 +114,9 @@ async def status():
     except Exception as e:
         status_info["ollama"] = f"error: {str(e)[:50]}"
     
-    # Check Whisper
     try:
         resp = requests.get(f"{WHISPER_URL}/", timeout=5)
-        if resp.status_code in [200, 404]:  # 404 is OK, means server is running
+        if resp.status_code in [200, 404]:
             status_info["whisper"] = "ok"
     except Exception as e:
         status_info["whisper"] = f"error: {str(e)[:50]}"
@@ -144,37 +134,23 @@ async def chat(request: ChatRequest):
         if not user_text:
             raise HTTPException(status_code=400, detail="Message cannot be empty")
         
-        # Get answer from RAG
         query_result = await rag_query(QueryRequest(query=user_text))
         answer = query_result["answer"]
         
-        # Save conversation
         conversation_id = request.conversation_id
         if supabase:
             try:
                 if not conversation_id:
-                    # Create new conversation
                     conv_response = supabase.table("conversations").insert({
                         "title": user_text[:50] + "..." if len(user_text) > 50 else user_text,
                         "created_at": time.time()
                     }).execute()
                     conversation_id = str(conv_response.data[0]["id"]) if conv_response.data else None
                 
-                # Save messages
                 if conversation_id:
                     supabase.table("conversation_messages").insert([
-                        {
-                            "conversation_id": int(conversation_id),
-                            "role": "user",
-                            "content": user_text,
-                            "created_at": time.time()
-                        },
-                        {
-                            "conversation_id": int(conversation_id),
-                            "role": "assistant",
-                            "content": answer,
-                            "created_at": time.time()
-                        }
+                        {"conversation_id": int(conversation_id), "role": "user", "content": user_text, "created_at": time.time()},
+                        {"conversation_id": int(conversation_id), "role": "assistant", "content": answer, "created_at": time.time()}
                     ]).execute()
             except Exception as e:
                 print(f"[CHAT] Error saving conversation: {e}")
@@ -196,10 +172,8 @@ async def chat(request: ChatRequest):
 async def voice_chat(request: VoiceChatRequest):
     """Voice-based chat: STT → RAG → Response"""
     try:
-        # Step 1: Transcribe audio
         audio_data = base64.b64decode(request.audio_data)
         
-        # Send to Whisper
         files = {"file": ("audio.wav", audio_data, "audio/wav")}
         whisper_response = requests.post(
             f"{WHISPER_URL}/asr",
@@ -215,11 +189,9 @@ async def voice_chat(request: VoiceChatRequest):
         if not user_text:
             return {"error": "No speech detected", "user_text": ""}
         
-        # Step 2: Get answer from RAG
         query_result = await rag_query(QueryRequest(query=user_text))
         answer = query_result["answer"]
         
-        # Step 3: Save conversation
         conversation_id = request.conversation_id
         if supabase:
             try:
@@ -232,18 +204,8 @@ async def voice_chat(request: VoiceChatRequest):
                 
                 if conversation_id:
                     supabase.table("conversation_messages").insert([
-                        {
-                            "conversation_id": int(conversation_id),
-                            "role": "user",
-                            "content": user_text,
-                            "created_at": time.time()
-                        },
-                        {
-                            "conversation_id": int(conversation_id),
-                            "role": "assistant",
-                            "content": answer,
-                            "created_at": time.time()
-                        }
+                        {"conversation_id": int(conversation_id), "role": "user", "content": user_text, "created_at": time.time()},
+                        {"conversation_id": int(conversation_id), "role": "assistant", "content": answer, "created_at": time.time()}
                     ]).execute()
             except Exception as e:
                 print(f"[VOICE-CHAT] Error saving conversation: {e}")
@@ -263,89 +225,64 @@ async def voice_chat(request: VoiceChatRequest):
 
 @app.post("/api/rag-query")
 async def rag_query(request: QueryRequest):
-    """Query RAG system: get relevant documents from Supabase and generate answer with Ollama"""
+    """Query RAG system"""
     try:
         context_docs = []
         context = ""
         
-        # Try to get embedding and search documents
-    try:
-        # Get embedding for query
-        embedding_response = requests.post(
-            f"{OLLAMA_BASE_URL}/api/embeddings",
-            json={"model": EMBEDDING_MODEL, "prompt": request.query},
-            timeout=30
-        )
-        embedding_response.raise_for_status()
-        query_embedding = embedding_response.json()["embedding"]
-        
-        # Search Supabase for similar documents
-            if supabase:
         try:
-            search_response = supabase.rpc(
-                "match_documents",
-                {
-                    "query_embedding": query_embedding,
-                            "match_threshold": 0.5,  # Lower threshold for more results
-                    "match_count": request.top_k
-                }
-            ).execute()
+            embedding_response = requests.post(
+                f"{OLLAMA_BASE_URL}/api/embeddings",
+                json={"model": EMBEDDING_MODEL, "prompt": request.query},
+                timeout=30
+            )
+            embedding_response.raise_for_status()
+            query_embedding = embedding_response.json()["embedding"]
             
-            context_docs = search_response.data if search_response.data else []
+            if supabase:
+                try:
+                    search_response = supabase.rpc(
+                        "match_documents",
+                        {"query_embedding": query_embedding, "match_threshold": 0.5, "match_count": request.top_k}
+                    ).execute()
+                    context_docs = search_response.data if search_response.data else []
                 except Exception as e:
-                    print(f"[RAG] Error in vector search: {e}")
-                    # Fallback: try simple text search
+                    print(f"[RAG] Vector search error: {e}")
                     try:
-                        fallback_response = supabase.table("documents").select("id, content, file_name").limit(request.top_k).execute()
-                        context_docs = fallback_response.data if fallback_response.data else []
+                        fallback = supabase.table("documents").select("id, content, file_name").eq("status", "indexed").limit(request.top_k).execute()
+                        context_docs = fallback.data if fallback.data else []
                     except:
                         pass
             
             context = "\n\n---\n\n".join([doc.get("content", "")[:2000] for doc in context_docs])
         except Exception as e:
-            print(f"[RAG] Error getting embeddings: {e}")
+            print(f"[RAG] Embedding error: {e}")
         
-        # Build prompt with context
         if context:
-            prompt = f"""You are a helpful AI assistant. Use the following context from the knowledge base to answer the question.
-If the context doesn't contain relevant information, say so but still try to provide a helpful response.
+            prompt = f"""You are a helpful AI assistant. Use the following context to answer the question.
 
-Context from documents:
+Context:
 {context}
 
 Question: {request.query}
 
 Answer:"""
         else:
-            prompt = f"""You are a helpful AI assistant. 
-Note: No documents have been indexed yet, so I cannot search the knowledge base.
-Please answer the following question based on your general knowledge:
+            prompt = f"""You are a helpful AI assistant. Answer the following question:
 
 Question: {request.query}
 
 Answer:"""
         
-        # Generate response with Ollama
         llm_response = requests.post(
             f"{OLLAMA_BASE_URL}/api/generate",
-            json={
-                "model": LLM_MODEL,
-                "prompt": prompt,
-                "stream": False
-            },
+            json={"model": LLM_MODEL, "prompt": prompt, "stream": False},
             timeout=120
         )
         llm_response.raise_for_status()
         answer = llm_response.json().get("response", "Sorry, I couldn't generate a response.")
         
-        return {
-            "answer": answer,
-            "context_docs": context_docs,
-            "context_count": len(context_docs)
-        }
-    except requests.exceptions.RequestException as e:
-        print(f"[RAG] Request error: {e}")
-        raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
+        return {"answer": answer, "context_docs": context_docs, "context_count": len(context_docs)}
     except Exception as e:
         print(f"[RAG] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -353,9 +290,8 @@ Answer:"""
 
 @app.post("/api/transcribe")
 async def transcribe(request: TranscribeRequest):
-    """Transcribe audio to text using Whisper"""
+    """Transcribe audio to text"""
     try:
-        # If audio_url provided, download it
         if request.audio_url:
             audio_response = requests.get(request.audio_url, timeout=30)
             audio_data = audio_response.content
@@ -364,18 +300,11 @@ async def transcribe(request: TranscribeRequest):
         else:
             raise HTTPException(status_code=400, detail="Either audio_url or audio_data required")
         
-        # Send to Whisper
         files = {"file": ("audio.wav", audio_data, "audio/wav")}
-        response = requests.post(
-            f"{WHISPER_URL}/asr",
-            files=files,
-            data={"language": "en", "output": "json"},
-            timeout=60
-        )
+        response = requests.post(f"{WHISPER_URL}/asr", files=files, data={"language": "en", "output": "json"}, timeout=60)
         response.raise_for_status()
-        result = response.json()
         
-        return {"text": result.get("text", "")}
+        return {"text": response.json().get("text", "")}
     except Exception as e:
         print(f"[TRANSCRIBE] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -383,17 +312,13 @@ async def transcribe(request: TranscribeRequest):
 
 @app.post("/api/synthesize")
 async def synthesize(request: SynthesizeRequest):
-    """Synthesize text to speech using Piper TTS"""
+    """Synthesize text to speech"""
     try:
         import urllib.parse
-        encoded_text = urllib.parse.quote(request.text[:500])  # Limit text length
-        response = requests.get(
-            f"{PIPER_URL}/api/tts?text={encoded_text}",
-            timeout=60
-        )
+        encoded_text = urllib.parse.quote(request.text[:500])
+        response = requests.get(f"{PIPER_URL}/api/tts?text={encoded_text}", timeout=60)
         response.raise_for_status()
         
-        # Return audio data as base64
         audio_base64 = base64.b64encode(response.content).decode()
         return {"audio_data": audio_base64, "content_type": "audio/wav"}
     except Exception as e:
@@ -405,21 +330,16 @@ async def synthesize(request: SynthesizeRequest):
 
 @app.get("/api/documents")
 async def list_documents():
-    """List all documents with their processing status"""
+    """List all documents"""
     try:
         if not supabase:
-            print("[DOCUMENTS] Supabase client not initialized")
             return []
         
-        print("[DOCUMENTS] Fetching documents from Supabase...")
         response = supabase.table("documents").select(
             "id, file_name, file_type, file_path, file_size, status, error_message, indexed_at, created_at"
         ).order("created_at", desc=True).execute()
         
         docs = response.data if response.data else []
-        print(f"[DOCUMENTS] Found {len(docs)} documents")
-        
-        # Ensure all fields are present
         for doc in docs:
             if not doc.get("file_name"):
                 doc["file_name"] = doc.get("file_path", "").split("/")[-1] if doc.get("file_path") else "Unknown"
@@ -430,15 +350,13 @@ async def list_documents():
         
         return docs
     except Exception as e:
-        print(f"[DOCUMENTS] Error listing: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"[DOCUMENTS] Error: {e}")
         return []
 
 
 @app.get("/api/documents/status")
 async def get_documents_status():
-    """Get quick status summary of all documents"""
+    """Get document status summary"""
     try:
         if not supabase:
             return {"total": 0, "pending": 0, "processing": 0, "indexed": 0, "error": 0}
@@ -446,13 +364,13 @@ async def get_documents_status():
         response = supabase.table("documents").select("id, status").execute()
         docs = response.data if response.data else []
         
-        status_counts = {"total": len(docs), "pending": 0, "processing": 0, "indexed": 0, "error": 0}
+        counts = {"total": len(docs), "pending": 0, "processing": 0, "indexed": 0, "error": 0}
         for doc in docs:
             status = doc.get("status", "pending")
-            if status in status_counts:
-                status_counts[status] += 1
+            if status in counts:
+                counts[status] += 1
         
-        return status_counts
+        return counts
     except Exception as e:
         print(f"[STATUS] Error: {e}")
         return {"total": 0, "pending": 0, "processing": 0, "indexed": 0, "error": 0}
@@ -460,21 +378,18 @@ async def get_documents_status():
 
 @app.post("/api/documents/upload")
 async def upload_document(file: UploadFile = File(...)):
-    """Upload a document and track its processing status"""
+    """Upload a document"""
     try:
-        # Get file size
-        file.file.seek(0, 2)  # Seek to end
+        file.file.seek(0, 2)
         file_size = file.file.tell()
-        file.file.seek(0)  # Seek back to start
+        file.file.seek(0)
         
-        # Save file to documents directory
         file_path = DOCUMENTS_DIR / file.filename
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        print(f"[UPLOAD] File saved: {file_path} ({file_size} bytes)")
+        print(f"[UPLOAD] File saved: {file_path}")
         
-        # Create document record in database with pending status
         doc_id = None
         if supabase:
             try:
@@ -489,9 +404,8 @@ async def upload_document(file: UploadFile = File(...)):
                 
                 if response.data:
                     doc_id = response.data[0]["id"]
-                    print(f"[UPLOAD] Document record created with ID: {doc_id}")
             except Exception as e:
-                print(f"[UPLOAD] Error creating document record: {e}")
+                print(f"[UPLOAD] DB error: {e}")
         
         return {
             "id": doc_id,
@@ -511,19 +425,15 @@ async def delete_document(document_id: str):
     """Delete a document"""
     try:
         if supabase:
-            # Get file path before deleting
             doc_response = supabase.table("documents").select("file_path").eq("id", document_id).execute()
+            supabase.table("documents").delete().eq("id", document_id).execute()
             
-        # Delete from Supabase
-        supabase.table("documents").delete().eq("id", document_id).execute()
+            if doc_response.data and doc_response.data[0].get("file_path"):
+                file_path = Path(doc_response.data[0]["file_path"])
+                if file_path.exists():
+                    file_path.unlink()
         
-            # Try to delete file
-        if doc_response.data and doc_response.data[0].get("file_path"):
-            file_path = Path(doc_response.data[0]["file_path"])
-            if file_path.exists():
-                file_path.unlink()
-        
-        return {"message": "Document deleted successfully"}
+        return {"message": "Document deleted"}
     except Exception as e:
         print(f"[DELETE] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -537,14 +447,14 @@ async def list_conversations():
     try:
         if not supabase:
             return []
+        
         response = supabase.table("conversations").select("*").order("created_at", desc=True).execute()
         conversations = response.data if response.data else []
         
-        # Get message counts for each conversation
         for conv in conversations:
             try:
-            msg_response = supabase.table("conversation_messages").select("id").eq("conversation_id", conv["id"]).execute()
-            conv["message_count"] = len(msg_response.data) if msg_response.data else 0
+                msg_response = supabase.table("conversation_messages").select("id").eq("conversation_id", conv["id"]).execute()
+                conv["message_count"] = len(msg_response.data) if msg_response.data else 0
             except:
                 conv["message_count"] = 0
         
@@ -556,19 +466,16 @@ async def list_conversations():
 
 @app.get("/api/conversations/{conversation_id}")
 async def get_conversation(conversation_id: str):
-    """Get a specific conversation with messages"""
+    """Get a conversation with messages"""
     try:
         if not supabase:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise HTTPException(status_code=404, detail="Not found")
         
-        # Get conversation
         conv_response = supabase.table("conversations").select("*").eq("id", conversation_id).execute()
         if not conv_response.data:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+            raise HTTPException(status_code=404, detail="Not found")
         
         conversation = conv_response.data[0]
-        
-        # Get messages
         msg_response = supabase.table("conversation_messages").select("*").eq("conversation_id", conversation_id).order("created_at").execute()
         conversation["messages"] = msg_response.data if msg_response.data else []
         
@@ -580,60 +487,28 @@ async def get_conversation(conversation_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ==================== Legacy n8n Endpoints ====================
+# ==================== Legacy Endpoints for n8n ====================
 
 @app.post("/voice-agent/process")
 async def process_voice_agent_legacy(request: TranscribeRequest, conversation_id: Optional[str] = None):
-    """Legacy endpoint for n8n - Complete voice agent flow"""
+    """Legacy endpoint for n8n"""
     try:
-        # Step 1: Transcribe
         transcript_result = await transcribe(request)
         user_text = transcript_result["text"]
         
         if not user_text:
             return {"error": "No speech detected"}
         
-        # Step 2: RAG Query
         query_result = await rag_query(QueryRequest(query=user_text))
-        answer = query_result["answer"]
-        
-        # Step 3: Save conversation
-        if supabase:
-            try:
-                if not conversation_id:
-                    conv_response = supabase.table("conversations").insert({
-                        "title": user_text[:50] + "..." if len(user_text) > 50 else user_text,
-                        "created_at": time.time()
-                    }).execute()
-                    conversation_id = str(conv_response.data[0]["id"]) if conv_response.data else None
-                
-                if conversation_id:
-                    supabase.table("conversation_messages").insert([
-                        {
-                            "conversation_id": int(conversation_id),
-                            "role": "user",
-                            "content": user_text,
-                            "created_at": time.time()
-                        },
-                        {
-                            "conversation_id": int(conversation_id),
-                            "role": "assistant",
-                            "content": answer,
-                            "created_at": time.time()
-                        }
-                    ]).execute()
-            except Exception as e:
-                print(f"[LEGACY] Error saving conversation: {e}")
         
         return {
             "conversation_id": conversation_id,
             "user_text": user_text,
-            "answer": answer,
+            "answer": query_result["answer"],
             "context_docs": query_result["context_docs"],
             "context_count": query_result["context_count"]
         }
     except Exception as e:
-        print(f"[LEGACY] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -645,7 +520,6 @@ async def rag_query_legacy(request: QueryRequest):
 
 # ==================== Static Files & Frontend ====================
 
-# Mount static files for frontend
 frontend_path = Path("/app/frontend")
 if frontend_path.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
