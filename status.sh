@@ -16,7 +16,7 @@ fi
 echo ""
 echo "=== Container Status ==="
 echo ""
-$COMPOSE_CMD -f docker-compose.full.yaml ps
+$COMPOSE_CMD -f docker-compose.full.yaml --env-file supabase-project/.env ps
 
 echo ""
 echo "=== Service Health ==="
@@ -33,14 +33,14 @@ check_service() {
     fi
 }
 
-check_service "Voice Agent API" "http://localhost:3001/api/health"
+check_service "Voice Agent API" "http://localhost:3002/api/health"
 check_service "Supabase API" "http://localhost:8000/rest/v1/"
 check_service "Ollama" "http://localhost:11434/api/tags"
 check_service "n8n" "http://localhost:5678"
+check_service "Whisper STT" "http://localhost:9000"
 
 echo ""
 echo "=== Ollama Models ==="
 docker exec ollama ollama list 2>/dev/null || echo "  Ollama not running"
 
 echo ""
-

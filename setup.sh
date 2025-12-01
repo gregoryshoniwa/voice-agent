@@ -111,7 +111,7 @@ create_directories() {
 
 stop_existing_containers() {
     print_info "Stopping any existing containers..."
-    $COMPOSE_CMD -f docker-compose.full.yaml down 2>/dev/null || true
+    $COMPOSE_CMD -f docker-compose.full.yaml --env-file supabase-project/.env down 2>/dev/null || true
     print_status "Existing containers stopped"
 }
 
@@ -206,9 +206,9 @@ show_status() {
     echo "  • Supabase:  supabase / Developer2024"
     echo ""
     echo -e "${YELLOW}Useful Commands:${NC}"
-    echo "  • View logs:     $COMPOSE_CMD -f docker-compose.full.yaml logs -f"
-    echo "  • Stop services: $COMPOSE_CMD -f docker-compose.full.yaml down"
-    echo "  • Restart:       $COMPOSE_CMD -f docker-compose.full.yaml restart"
+    echo "  • View logs:     $COMPOSE_CMD -f docker-compose.full.yaml --env-file supabase-project/.env logs -f"
+    echo "  • Stop services: $COMPOSE_CMD -f docker-compose.full.yaml --env-file supabase-project/.env down"
+    echo "  • Restart:       $COMPOSE_CMD -f docker-compose.full.yaml --env-file supabase-project/.env restart"
     echo ""
     echo -e "${YELLOW}Container Status:${NC}"
     $COMPOSE_CMD -f docker-compose.full.yaml ps --format "table {{.Name}}\t{{.Status}}"

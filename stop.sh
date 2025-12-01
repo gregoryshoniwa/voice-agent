@@ -10,10 +10,9 @@ cd "$SCRIPT_DIR"
 echo "Stopping all services..."
 
 if docker compose version &> /dev/null; then
-    docker compose -f docker-compose.full.yaml down
+    docker compose -f docker-compose.full.yaml --env-file supabase-project/.env down
 else
-    docker-compose -f docker-compose.full.yaml down
+    docker-compose -f docker-compose.full.yaml --env-file supabase-project/.env down
 fi
 
 echo "All services stopped."
-
