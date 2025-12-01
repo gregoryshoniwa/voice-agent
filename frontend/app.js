@@ -6,6 +6,7 @@ let isRecording = false;
 let mediaRecorder = null;
 let audioChunks = [];
 let currentConversationId = null;
+let documentRefreshInterval = null;
 
 // Check authentication on load
 window.addEventListener('DOMContentLoaded', () => {
@@ -13,6 +14,7 @@ window.addEventListener('DOMContentLoaded', () => {
         showDashboard();
         loadDocuments();
         loadConversations();
+        startDocumentPolling();
     } else {
         showLanding();
     }
@@ -22,6 +24,7 @@ window.addEventListener('DOMContentLoaded', () => {
 function showLanding() {
     hideAllPages();
     document.getElementById('landingPage').classList.add('active');
+    stopDocumentPolling();
 }
 
 function showLogin() {
@@ -53,6 +56,7 @@ function handleLogin(event) {
         showDashboard();
         loadDocuments();
         loadConversations();
+        startDocumentPolling();
     } else {
         errorDiv.textContent = 'Invalid username or password';
         errorDiv.classList.add('show');
@@ -65,6 +69,7 @@ function isAuthenticated() {
 
 function logout() {
     localStorage.removeItem(AUTH_KEY);
+    stopDocumentPolling();
     showLanding();
 }
 
@@ -87,6 +92,44 @@ function showSection(section) {
         loadDocuments();
     } else if (section === 'history') {
         loadConversations();
+    }
+}
+
+// ==================== DOCUMENT POLLING ====================
+
+function startDocumentPolling() {
+    // Poll every 3 seconds for status updates
+    if (documentRefreshInterval) {
+        clearInterval(documentRefreshInterval);
+    }
+    documentRefreshInterval = setInterval(() => {
+        // Only refresh if on documents tab and there are pending docs
+        const ragSection = document.getElementById('ragSection');
+        if (ragSection && ragSection.classList.contains('active')) {
+            refreshDocumentsIfPending();
+        }
+    }, 3000);
+}
+
+function stopDocumentPolling() {
+    if (documentRefreshInterval) {
+        clearInterval(documentRefreshInterval);
+        documentRefreshInterval = null;
+    }
+}
+
+async function refreshDocumentsIfPending() {
+    try {
+        const response = await fetch(`${API_URL}/documents/status`);
+        if (response.ok) {
+            const status = await response.json();
+            // Refresh if there are pending or processing documents
+            if (status.pending > 0 || status.processing > 0) {
+                loadDocuments();
+            }
+        }
+    } catch (e) {
+        // Ignore errors during polling
     }
 }
 
@@ -315,22 +358,39 @@ function blobToBase64(blob) {
 
 // ==================== DOCUMENT MANAGEMENT ====================
 
+function getStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="status-badge pending">⏳ Pending</span>',
+        'processing': '<span class="status-badge processing">🔄 Processing</span>',
+        'indexed': '<span class="status-badge indexed">✅ Indexed</span>',
+        'error': '<span class="status-badge error">❌ Error</span>'
+    };
+    return badges[status] || badges['pending'];
+}
+
+function formatFileSize(bytes) {
+    if (!bytes) return 'Unknown size';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 async function loadDocuments() {
     const listDiv = document.getElementById('documentsList');
-    listDiv.innerHTML = '<div class="loading">Loading documents...</div>';
+    
+    // Don't show loading if we already have content (just refreshing)
+    if (listDiv.innerHTML.includes('loading')) {
+        listDiv.innerHTML = '<div class="loading">Loading documents...</div>';
+    }
 
     try {
-        console.log('Fetching documents from:', `${API_URL}/documents`);
         const response = await fetch(`${API_URL}/documents`);
         
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('API error:', response.status, errorText);
             throw new Error(`API error: ${response.status}`);
         }
 
         const documents = await response.json();
-        console.log('Documents received:', documents);
         
         if (!documents || documents.length === 0) {
             listDiv.innerHTML = `
@@ -338,32 +398,35 @@ async function loadDocuments() {
                     <div class="empty-state-icon">📄</div>
                     <p>No documents uploaded yet</p>
                     <p>Click "Upload Document" to get started</p>
-                    <p style="font-size: 12px; margin-top: 10px; color: #999;">
-                        If you've uploaded documents, check that the RAG indexer has processed them.
-                    </p>
                 </div>
             `;
             return;
         }
 
         listDiv.innerHTML = documents.map(doc => `
-            <div class="document-item">
+            <div class="document-item ${doc.status === 'processing' ? 'processing' : ''}">
                 <div class="document-info">
-                    <div class="document-name">${doc.file_name || doc.name || 'Unnamed'}</div>
-                    <div class="document-meta">
-                        Type: ${doc.file_type || doc.type || 'Unknown'} | 
-                        Indexed: ${formatDate(doc.indexed_at || doc.created_at)}
+                    <div class="document-name">
+                        ${doc.file_name || 'Unnamed'}
+                        ${getStatusBadge(doc.status || 'indexed')}
                     </div>
+                    <div class="document-meta">
+                        Type: ${doc.file_type || 'Unknown'} | 
+                        Size: ${formatFileSize(doc.file_size)} |
+                        ${doc.status === 'indexed' ? 'Indexed: ' + formatDate(doc.indexed_at) : 'Uploaded: ' + formatDate(doc.created_at)}
+                    </div>
+                    ${doc.error_message ? `<div class="document-error">Error: ${doc.error_message}</div>` : ''}
                 </div>
-                <button class="btn-danger" onclick="deleteDocument('${doc.id}')">Delete</button>
+                <button class="btn-danger" onclick="deleteDocument('${doc.id}')" ${doc.status === 'processing' ? 'disabled' : ''}>
+                    Delete
+                </button>
             </div>
         `).join('');
     } catch (error) {
         console.error('Error loading documents:', error);
         listDiv.innerHTML = `
             <div class="error-message show">
-                Error loading documents: ${error.message}<br>
-                <small>Check browser console (F12) for details.</small>
+                Error loading documents: ${error.message}
             </div>
         `;
     }
@@ -377,8 +440,11 @@ async function handleFileUpload(event) {
     statusDiv.textContent = `Uploading ${files.length} file(s)...`;
     statusDiv.className = 'status-message show';
 
-    try {
-        for (const file of files) {
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const file of files) {
+        try {
             const formData = new FormData();
             formData.append('file', file);
 
@@ -390,24 +456,32 @@ async function handleFileUpload(event) {
             if (!response.ok) {
                 throw new Error(`Failed to upload ${file.name}`);
             }
+            
+            successCount++;
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            errorCount++;
         }
+    }
 
-        statusDiv.textContent = `Successfully uploaded ${files.length} file(s)! Processing will begin shortly.`;
+    // Clear file input
+    event.target.value = '';
+
+    if (errorCount === 0) {
+        statusDiv.textContent = `✅ Uploaded ${successCount} file(s). Processing will begin shortly...`;
         statusDiv.className = 'status-message show success';
-        
-        // Clear file input
-        event.target.value = '';
-        
-        // Reload documents after a delay (to allow for processing)
-        setTimeout(() => {
-            loadDocuments();
-            statusDiv.classList.remove('show');
-        }, 3000);
-    } catch (error) {
-        console.error('Error uploading file:', error);
-        statusDiv.textContent = `Error: ${error.message}`;
+    } else {
+        statusDiv.textContent = `Uploaded ${successCount} file(s), ${errorCount} failed.`;
         statusDiv.className = 'status-message show error';
     }
+    
+    // Immediately refresh to show pending documents
+    loadDocuments();
+    
+    // Hide status after 5 seconds
+    setTimeout(() => {
+        statusDiv.classList.remove('show');
+    }, 5000);
 }
 
 async function deleteDocument(id) {
@@ -478,7 +552,6 @@ async function toggleConversationDetails(convId, btn) {
     const isHidden = details.style.display === 'none';
     
     if (isHidden) {
-        // Load conversation details
         try {
             const response = await fetch(`${API_URL}/conversations/${convId}`);
             if (!response.ok) throw new Error('Failed to load conversation');
@@ -516,7 +589,6 @@ function refreshConversations() {
 
 function formatDate(timestamp) {
     if (!timestamp) return 'Unknown';
-    // Handle both Unix timestamps and ISO strings
     const date = typeof timestamp === 'number' 
         ? new Date(timestamp * 1000) 
         : new Date(timestamp);
