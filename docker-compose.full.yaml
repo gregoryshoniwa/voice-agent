@@ -1,8 +1,6 @@
 # Unified Docker Compose file for n8n + Supabase
 # Usage: docker compose -f docker-compose.full.yaml --env-file supabase-project/.env up -d
 
-name: n8n-supabase
-
 services:
   # ============================================
   # n8n Service
@@ -83,7 +81,7 @@ services:
       LOGFLARE_PUBLIC_ACCESS_TOKEN: ${LOGFLARE_PUBLIC_ACCESS_TOKEN}
       LOGFLARE_PRIVATE_ACCESS_TOKEN: ${LOGFLARE_PRIVATE_ACCESS_TOKEN}
       LOGFLARE_URL: http://analytics:4000
-      NEXT_PUBLIC_ENABLE_LOGS: true
+      NEXT_PUBLIC_ENABLE_LOGS: "true"
       NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
     networks:
       - supabase_network
@@ -233,8 +231,8 @@ services:
       DNS_NODES: "''"
       RLIMIT_NOFILE: "10000"
       APP_NAME: realtime
-      SEED_SELF_HOST: true
-      RUN_JANITOR: true
+      SEED_SELF_HOST: "true"
+      RUN_JANITOR: "true"
     networks:
       - supabase_network
 
@@ -380,8 +378,8 @@ services:
       DB_SCHEMA: _analytics
       LOGFLARE_PUBLIC_ACCESS_TOKEN: ${LOGFLARE_PUBLIC_ACCESS_TOKEN}
       LOGFLARE_PRIVATE_ACCESS_TOKEN: ${LOGFLARE_PRIVATE_ACCESS_TOKEN}
-      LOGFLARE_SINGLE_TENANT: true
-      LOGFLARE_SUPABASE_MODE: true
+      LOGFLARE_SINGLE_TENANT: "true"
+      LOGFLARE_SUPABASE_MODE: "true"
       POSTGRES_BACKEND_URL: postgresql://supabase_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/_supabase
       POSTGRES_BACKEND_SCHEMA: _analytics
       LOGFLARE_FEATURE_FLAG_OVERRIDE: multibackend=true
@@ -505,7 +503,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       DATABASE_URL: ecto://supabase_admin:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/_supabase
-      CLUSTER_POSTGRES: true
+      CLUSTER_POSTGRES: "true"
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       VAULT_ENC_KEY: ${VAULT_ENC_KEY}
       API_JWT_SECRET: ${JWT_SECRET}
