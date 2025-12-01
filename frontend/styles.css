@@ -550,11 +550,67 @@ body {
 .document-name, .conversation-title {
     font-weight: 600;
     margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
 .document-meta, .conversation-meta {
     font-size: 14px;
     color: var(--text-light);
+}
+
+.document-error {
+    font-size: 13px;
+    color: var(--danger);
+    margin-top: 5px;
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-badge.pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-badge.processing {
+    background: #dbeafe;
+    color: #1e40af;
+    animation: pulse-processing 1.5s infinite;
+}
+
+.status-badge.indexed {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-badge.error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+@keyframes pulse-processing {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.document-item.processing {
+    background: linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 .btn-danger {

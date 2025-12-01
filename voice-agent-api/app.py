@@ -197,7 +197,7 @@ async def voice_chat(request: VoiceChatRequest):
     """Voice-based chat: STT → RAG → Response"""
     try:
         # Step 1: Transcribe audio
-        audio_data = base64.b64decode(request.audio_data)
+            audio_data = base64.b64decode(request.audio_data)
         
         # Send to Whisper
         files = {"file": ("audio.wav", audio_data, "audio/wav")}
@@ -269,29 +269,29 @@ async def rag_query(request: QueryRequest):
         context = ""
         
         # Try to get embedding and search documents
-        try:
-            # Get embedding for query
-            embedding_response = requests.post(
-                f"{OLLAMA_BASE_URL}/api/embeddings",
-                json={"model": EMBEDDING_MODEL, "prompt": request.query},
-                timeout=30
-            )
-            embedding_response.raise_for_status()
-            query_embedding = embedding_response.json()["embedding"]
-            
-            # Search Supabase for similar documents
+    try:
+        # Get embedding for query
+        embedding_response = requests.post(
+            f"{OLLAMA_BASE_URL}/api/embeddings",
+            json={"model": EMBEDDING_MODEL, "prompt": request.query},
+            timeout=30
+        )
+        embedding_response.raise_for_status()
+        query_embedding = embedding_response.json()["embedding"]
+        
+        # Search Supabase for similar documents
             if supabase:
-                try:
-                    search_response = supabase.rpc(
-                        "match_documents",
-                        {
-                            "query_embedding": query_embedding,
+        try:
+            search_response = supabase.rpc(
+                "match_documents",
+                {
+                    "query_embedding": query_embedding,
                             "match_threshold": 0.5,  # Lower threshold for more results
-                            "match_count": request.top_k
-                        }
-                    ).execute()
-                    
-                    context_docs = search_response.data if search_response.data else []
+                    "match_count": request.top_k
+                }
+            ).execute()
+            
+            context_docs = search_response.data if search_response.data else []
                 except Exception as e:
                     print(f"[RAG] Error in vector search: {e}")
                     # Fallback: try simple text search
@@ -405,14 +405,16 @@ async def synthesize(request: SynthesizeRequest):
 
 @app.get("/api/documents")
 async def list_documents():
-    """List all indexed documents"""
+    """List all documents with their processing status"""
     try:
         if not supabase:
             print("[DOCUMENTS] Supabase client not initialized")
             return []
         
         print("[DOCUMENTS] Fetching documents from Supabase...")
-        response = supabase.table("documents").select("id, file_name, file_type, file_path, indexed_at").order("indexed_at", desc=True).execute()
+        response = supabase.table("documents").select(
+            "id, file_name, file_type, file_path, file_size, status, error_message, indexed_at, created_at"
+        ).order("created_at", desc=True).execute()
         
         docs = response.data if response.data else []
         print(f"[DOCUMENTS] Found {len(docs)} documents")
@@ -423,34 +425,81 @@ async def list_documents():
                 doc["file_name"] = doc.get("file_path", "").split("/")[-1] if doc.get("file_path") else "Unknown"
             if not doc.get("file_type"):
                 doc["file_type"] = "." + doc.get("file_name", "").split(".")[-1] if "." in doc.get("file_name", "") else "unknown"
+            if not doc.get("status"):
+                doc["status"] = "indexed" if doc.get("indexed_at") else "pending"
         
         return docs
     except Exception as e:
         print(f"[DOCUMENTS] Error listing: {e}")
         import traceback
         traceback.print_exc()
-        # Return error info for debugging
         return []
+
+
+@app.get("/api/documents/status")
+async def get_documents_status():
+    """Get quick status summary of all documents"""
+    try:
+        if not supabase:
+            return {"total": 0, "pending": 0, "processing": 0, "indexed": 0, "error": 0}
+        
+        response = supabase.table("documents").select("id, status").execute()
+        docs = response.data if response.data else []
+        
+        status_counts = {"total": len(docs), "pending": 0, "processing": 0, "indexed": 0, "error": 0}
+        for doc in docs:
+            status = doc.get("status", "pending")
+            if status in status_counts:
+                status_counts[status] += 1
+        
+        return status_counts
+    except Exception as e:
+        print(f"[STATUS] Error: {e}")
+        return {"total": 0, "pending": 0, "processing": 0, "indexed": 0, "error": 0}
 
 
 @app.post("/api/documents/upload")
 async def upload_document(file: UploadFile = File(...)):
-    """Upload a document (will be indexed by RAG indexer)"""
+    """Upload a document and track its processing status"""
     try:
+        # Get file size
+        file.file.seek(0, 2)  # Seek to end
+        file_size = file.file.tell()
+        file.file.seek(0)  # Seek back to start
+        
         # Save file to documents directory
         file_path = DOCUMENTS_DIR / file.filename
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        print(f"[UPLOAD] File saved: {file_path}")
+        print(f"[UPLOAD] File saved: {file_path} ({file_size} bytes)")
         
-        # Return document info (RAG indexer will process it)
+        # Create document record in database with pending status
+        doc_id = None
+        if supabase:
+            try:
+                response = supabase.table("documents").insert({
+                    "file_name": file.filename,
+                    "file_type": Path(file.filename).suffix,
+                    "file_path": str(file_path),
+                    "file_size": file_size,
+                    "status": "pending",
+                    "created_at": time.time()
+                }).execute()
+                
+                if response.data:
+                    doc_id = response.data[0]["id"]
+                    print(f"[UPLOAD] Document record created with ID: {doc_id}")
+            except Exception as e:
+                print(f"[UPLOAD] Error creating document record: {e}")
+        
         return {
-            "id": str(file_path),
+            "id": doc_id,
             "file_name": file.filename,
             "file_type": Path(file.filename).suffix,
-            "status": "uploaded",
-            "message": "File uploaded. RAG indexer will process it shortly."
+            "file_size": file_size,
+            "status": "pending",
+            "message": "File uploaded. Processing will begin shortly."
         }
     except Exception as e:
         print(f"[UPLOAD] Error: {e}")
@@ -465,14 +514,14 @@ async def delete_document(document_id: str):
             # Get file path before deleting
             doc_response = supabase.table("documents").select("file_path").eq("id", document_id).execute()
             
-            # Delete from Supabase
-            supabase.table("documents").delete().eq("id", document_id).execute()
-            
+        # Delete from Supabase
+        supabase.table("documents").delete().eq("id", document_id).execute()
+        
             # Try to delete file
-            if doc_response.data and doc_response.data[0].get("file_path"):
-                file_path = Path(doc_response.data[0]["file_path"])
-                if file_path.exists():
-                    file_path.unlink()
+        if doc_response.data and doc_response.data[0].get("file_path"):
+            file_path = Path(doc_response.data[0]["file_path"])
+            if file_path.exists():
+                file_path.unlink()
         
         return {"message": "Document deleted successfully"}
     except Exception as e:
@@ -494,8 +543,8 @@ async def list_conversations():
         # Get message counts for each conversation
         for conv in conversations:
             try:
-                msg_response = supabase.table("conversation_messages").select("id").eq("conversation_id", conv["id"]).execute()
-                conv["message_count"] = len(msg_response.data) if msg_response.data else 0
+            msg_response = supabase.table("conversation_messages").select("id").eq("conversation_id", conv["id"]).execute()
+            conv["message_count"] = len(msg_response.data) if msg_response.data else 0
             except:
                 conv["message_count"] = 0
         
