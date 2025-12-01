@@ -53,13 +53,13 @@ This will:
 
 1. Go to your RunPod console
 2. Click on your pod → **Connect** → **HTTP Service**
-3. Add public endpoint for port **3001** (Voice Agent API/Frontend)
+3. Add public endpoint for port **80** (Voice Agent API/Frontend)
 4. Optionally add port **11434** (Ollama API)
 
 ### Step 6: Access Your Application
 
-- **Frontend**: `https://<pod-id>-3001.proxy.runpod.net`
-- **API Docs**: `https://<pod-id>-3001.proxy.runpod.net/docs`
+- **Frontend**: `https://<pod-id>-80.proxy.runpod.net`
+- **API Docs**: `https://<pod-id>-80.proxy.runpod.net/docs`
 
 ---
 
@@ -111,8 +111,8 @@ ollama list
 
 ### Check API Status
 ```bash
-curl http://localhost:3001/api/health
-curl http://localhost:3001/api/status
+curl http://localhost:80/api/health
+curl http://localhost:80/api/status
 ```
 
 ### View Logs
