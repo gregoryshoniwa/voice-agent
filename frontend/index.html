@@ -67,14 +67,56 @@
             </header>
             
             <nav class="dashboard-nav">
-                <button class="nav-btn active" onclick="showSection('rag')">📄 RAG</button>
-                <button class="nav-btn" onclick="showSection('conversation')">💬 Conversation</button>
+                <button class="nav-btn active" onclick="showSection('chat')">💬 Chat</button>
+                <button class="nav-btn" onclick="showSection('rag')">📄 Documents</button>
+                <button class="nav-btn" onclick="showSection('history')">📜 History</button>
             </nav>
 
-            <!-- RAG Section -->
-            <div id="ragSection" class="section active">
+            <!-- Chat Section -->
+            <div id="chatSection" class="section active">
+                <div class="chat-container">
+                    <div class="chat-header">
+                        <h2>💬 Ask a Question</h2>
+                        <div class="chat-status" id="chatStatus">Ready</div>
+                    </div>
+                    
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="welcome-message">
+                            <div class="welcome-icon">🤖</div>
+                            <h3>Welcome to AI Voice Agent!</h3>
+                            <p>Ask me anything about your uploaded documents. I'll search through them and provide relevant answers.</p>
+                            <p class="hint">💡 Tip: Upload documents in the Documents tab first to get better answers!</p>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-input-container">
+                        <form id="chatForm" onsubmit="handleChatSubmit(event)">
+                            <div class="chat-input-wrapper">
+                                <input 
+                                    type="text" 
+                                    id="chatInput" 
+                                    placeholder="Type your question here..." 
+                                    autocomplete="off"
+                                >
+                                <button type="submit" class="btn-send" id="sendBtn">
+                                    <span class="send-icon">➤</span>
+                                </button>
+                            </div>
+                        </form>
+                        <div class="voice-controls">
+                            <button class="btn-voice" id="voiceBtn" onclick="toggleVoiceRecording()">
+                                <span class="mic-icon">🎤</span>
+                                <span class="voice-text">Hold to Speak</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RAG/Documents Section -->
+            <div id="ragSection" class="section">
                 <div class="section-header">
-                    <h2>Document Management</h2>
+                    <h2>📄 Document Management</h2>
                     <button class="btn-primary" onclick="document.getElementById('fileInput').click()">
                         📤 Upload Document
                     </button>
@@ -83,6 +125,11 @@
                 
                 <div id="uploadStatus" class="status-message"></div>
                 
+                <div class="info-box">
+                    <p><strong>📌 Supported formats:</strong> PDF, TXT, Markdown</p>
+                    <p>Documents are automatically indexed for RAG queries. After upload, wait a few moments for processing.</p>
+                </div>
+                
                 <div class="documents-list">
                     <div id="documentsList">
                         <div class="loading">Loading documents...</div>
@@ -90,10 +137,10 @@
                 </div>
             </div>
 
-            <!-- Conversation Section -->
-            <div id="conversationSection" class="section">
+            <!-- History Section -->
+            <div id="historySection" class="section">
                 <div class="section-header">
-                    <h2>Conversation History</h2>
+                    <h2>📜 Conversation History</h2>
                     <button class="btn-secondary" onclick="refreshConversations()">🔄 Refresh</button>
                 </div>
                 
