@@ -1,187 +1,179 @@
 # Deploying AI Voice Agent to RunPod Server
 
-## Prerequisites
+## ⚠️ Important: RunPod Does NOT Support Docker-in-Docker
 
-Your RunPod server should have:
-- GPU: A40 (or similar)
-- Docker installed
-- Docker Compose installed
-- Internet access
+RunPod pods run inside containers and **do not support running Docker or Docker Compose** inside them. Use the **Native Setup** method below.
 
-## Step 1: Connect to Your RunPod Server
+---
 
+## Method 1: Native Setup (Recommended for RunPod)
+
+This method runs services directly without Docker.
+
+### Step 1: Connect to Your RunPod Server
+
+Get your SSH command from the RunPod console:
 ```bash
-# SSH into your RunPod server
-ssh root@<your-runpod-ip>
+ssh root@<your-runpod-ip> -p <port>
+# Or use the web terminal in RunPod console
 ```
 
-## Step 2: Install Docker & Docker Compose (if not already installed)
+### Step 2: Clone the Repository
 
-```bash
-# Update system
-apt-get update
-
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sh get-docker.sh
-
-# Install Docker Compose V2
-apt-get install docker-compose-plugin -y
-
-# Verify installation
-docker --version
-docker compose version
-```
-
-## Step 3: Clone or Transfer Your Code
-
-### Option A: If you have Git access
 ```bash
 cd /workspace
-git clone <your-repo-url> batsi-4.0-ai-voice-agent-rag
-cd batsi-4.0-ai-voice-agent-rag
+git clone https://github.com/gregoryshoniwa/voice-agent.git
+cd voice-agent
 ```
 
-### Option B: Transfer files from your local machine
-```bash
-# On your local machine, create a tarball
-cd /path/to/Batsi\ 4.0
-tar -czf batsi-4.0.tar.gz --exclude='.git' --exclude='node_modules' --exclude='__pycache__' .
-
-# Transfer to RunPod
-scp batsi-4.0.tar.gz root@<runpod-ip>:/workspace/
-
-# On RunPod server
-cd /workspace
-tar -xzf batsi-4.0.tar.gz
-cd batsi-4.0-ai-voice-agent-rag
-```
-
-## Step 4: Configure Environment
-
-```bash
-# Copy environment file
-cp supabase-project/.env.dev supabase-project/.env
-
-# Edit if needed (check POSTGRES_PORT, etc.)
-nano supabase-project/.env
-```
-
-## Step 5: Update Ports for RunPod
-
-RunPod might have different port requirements. Check your RunPod network settings and update if needed:
-
-```bash
-# Check what ports are available
-netstat -tuln | grep LISTEN
-
-# If port 3002 is taken, update docker-compose.full.yaml
-# Change: "3002:3001" to something else like "3003:3001"
-```
-
-## Step 6: Enable GPU Support for Ollama (Important!)
-
-Since you have an A40 GPU, we should use it for faster inference:
-
-```bash
-# Edit docker-compose.full.yaml
-nano docker-compose.full.yaml
-
-# Find the ollama service and uncomment GPU section:
-# ollama:
-#   ...
-#   deploy:
-#     resources:
-#       reservations:
-#         devices:
-#           - driver: nvidia
-#             count: 1
-#             capabilities: [gpu]
-```
-
-## Step 7: Run Setup
+### Step 3: Run Native Setup
 
 ```bash
 # Make scripts executable
-chmod +x setup.sh stop.sh logs.sh status.sh init-rag.sh
+chmod +x setup-runpod-native.sh start-services.sh
 
-# Run setup (this will take 10-20 minutes)
-./setup.sh
-
-# Or skip model pulling if you want faster setup
-./setup.sh --skip-models
+# Run the native setup (installs Ollama, PostgreSQL, Python deps)
+./setup-runpod-native.sh
 ```
 
-## Step 8: Access Your Application
+This will:
+- ✅ Detect your GPU (RTX A5000, A40, etc.)
+- ✅ Install Ollama and pull AI models
+- ✅ Set up PostgreSQL database
+- ✅ Install Python dependencies
+- ✅ Create the Voice Agent API
 
-After setup completes, you'll see URLs like:
-- Frontend: `http://<runpod-ip>:3002`
-- n8n: `http://<runpod-ip>:5678`
-- Supabase Studio: `http://<runpod-ip>:8000`
-
-**Important:** RunPod might require you to:
-1. Create a Public Endpoint in RunPod dashboard
-2. Or use their port forwarding feature
-
-## Step 9: Pull Ollama Models (with GPU acceleration)
+### Step 4: Start Services
 
 ```bash
-# Pull models (will use GPU automatically)
-docker exec ollama ollama pull llama3.2:1b
-docker exec ollama ollama pull nomic-embed-text
-
-# Verify GPU is being used
-docker exec ollama nvidia-smi
+./start-services.sh
 ```
 
-## Step 10: Initialize RAG System
+### Step 5: Configure Public Endpoints in RunPod
+
+1. Go to your RunPod console
+2. Click on your pod → **Connect** → **HTTP Service**
+3. Add public endpoint for port **3001** (Voice Agent API/Frontend)
+4. Optionally add port **11434** (Ollama API)
+
+### Step 6: Access Your Application
+
+- **Frontend**: `https://<pod-id>-3001.proxy.runpod.net`
+- **API Docs**: `https://<pod-id>-3001.proxy.runpod.net/docs`
+
+---
+
+## Method 2: Docker Setup (For VPS/Cloud Servers with Docker)
+
+If you're using a VPS or cloud server where Docker is available (NOT RunPod pods), use the Docker-based setup.
+
+### Prerequisites
+
+- Docker Engine 20.10+
+- Docker Compose V2+
+- GPU support (optional, for faster inference)
+
+### Step 1: Clone and Setup
 
 ```bash
-# Initialize database tables
-./init-rag.sh
+cd /opt  # or your preferred directory
+git clone https://github.com/gregoryshoniwa/voice-agent.git
+cd voice-agent
 
-# Or manually:
-docker exec -i supabase-db psql -U postgres -d postgres < supabase-project/volumes/db/rag-setup.sql
-docker exec -i supabase-db psql -U postgres -d postgres < supabase-project/volumes/db/conversations-setup.sql
+# Copy environment file
+cp supabase-project/.env.dev supabase-project/.env
+
+# Run Docker setup
+chmod +x setup.sh setup-runpod.sh
+./setup-runpod.sh  # For GPU servers
+# or
+./setup.sh         # For CPU servers
 ```
+
+### Step 2: Access Services
+
+- Frontend: `http://<server-ip>:3002`
+- n8n: `http://<server-ip>:5678`
+- Supabase Studio: `http://<server-ip>:8000`
+
+---
 
 ## Troubleshooting
 
-### Check container status
+### RunPod: "Docker daemon is not running"
+This is expected! RunPod doesn't support Docker-in-Docker. Use `setup-runpod-native.sh` instead.
+
+### Check Ollama Status
 ```bash
-./status.sh
+curl http://localhost:11434/api/tags
+ollama list
 ```
 
-### View logs
+### Check API Status
 ```bash
-./logs.sh
-# Or specific service
-./logs.sh voice-agent-api
-./logs.sh ollama
+curl http://localhost:3001/api/health
+curl http://localhost:3001/api/status
 ```
 
-### Restart services
+### View Logs
 ```bash
-./stop.sh
-./setup.sh
+# Ollama logs
+tail -f /tmp/ollama.log
+
+# API logs (if running in foreground)
+# Check the terminal where uvicorn is running
 ```
 
-### Check GPU usage
+### Restart Services
 ```bash
+# Kill existing processes
+pkill ollama
+pkill uvicorn
+
+# Restart
+./start-services.sh
+```
+
+### GPU Not Detected
+```bash
+# Check NVIDIA driver
 nvidia-smi
-docker exec ollama nvidia-smi
+
+# If not working, install NVIDIA drivers
+apt-get install nvidia-driver-535  # or appropriate version
 ```
+
+---
 
 ## Performance Tips
 
-1. **Use GPU for Ollama** - Much faster inference
-2. **Use smaller models** - `llama3.2:1b` is good for CPU, but with GPU you can use `llama3.2` (2GB) or even `llama3.1:8b` for better quality
-3. **Monitor GPU memory** - A40 has 48GB, so you have plenty of room
+1. **GPU Acceleration**: RTX A5000/A40 will significantly speed up Ollama inference
+2. **Model Selection**: 
+   - `llama3.2:1b` - Fast, good for testing
+   - `llama3.2` - Better quality, slower
+   - `llama3.1:8b` - Best quality, requires more VRAM
+3. **Monitor Resources**: Use `nvidia-smi` to watch GPU memory
 
-## Next Steps
+---
 
-1. Upload documents via the web interface
-2. Test chat functionality
-3. Configure n8n workflows if needed
-4. Set up public endpoints in RunPod dashboard for external access
+## Quick Reference
+
+### Native Setup (RunPod)
+```bash
+cd /workspace
+git clone https://github.com/gregoryshoniwa/voice-agent.git
+cd voice-agent
+chmod +x setup-runpod-native.sh start-services.sh
+./setup-runpod-native.sh
+./start-services.sh
+```
+
+### Docker Setup (VPS)
+```bash
+git clone https://github.com/gregoryshoniwa/voice-agent.git
+cd voice-agent
+cp supabase-project/.env.dev supabase-project/.env
+chmod +x setup.sh
+./setup.sh
+```
 
