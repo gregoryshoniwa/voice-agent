@@ -383,7 +383,7 @@ async def transcribe(request: TranscribeRequest):
 
 @app.post("/api/synthesize")
 async def synthesize(request: SynthesizeRequest):
-    """Synthesize text to speech using Coqui TTS"""
+    """Synthesize text to speech using Piper TTS"""
     try:
         import urllib.parse
         encoded_text = urllib.parse.quote(request.text[:500])  # Limit text length

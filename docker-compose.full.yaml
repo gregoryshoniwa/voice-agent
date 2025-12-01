@@ -558,15 +558,12 @@ services:
     networks:
       - supabase_network
 
-  # TTS Service - Using Coqui TTS (Docker Hub)
+  # TTS Service - Lightweight Piper TTS
   piper:
-    image: ghcr.io/coqui-ai/tts:latest
+    build: ./piper-tts
     container_name: piper-tts
     ports:
       - "5500:5002"
-    environment:
-      - COQUI_TOS_AGREED=1
-    command: ["--model_name", "tts_models/en/ljspeech/tacotron2-DDC", "--port", "5002"]
     restart: unless-stopped
     networks:
       - supabase_network
