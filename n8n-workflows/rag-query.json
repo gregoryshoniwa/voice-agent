@@ -11,33 +11,24 @@
       "id": "webhook-rag-query",
       "name": "Webhook - RAG Query",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [250, 300],
       "webhookId": "rag-query"
     },
     {
       "parameters": {
-        "url": "http://voice-agent-api:3001/rag-query",
-        "authentication": "none",
+        "url": "http://voice-agent-api:3001/api/rag-query",
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "query",
-              "value": "={{ $json.body.query }}"
-            },
-            {
-              "name": "top_k",
-              "value": "={{ $json.body.top_k || 3 }}"
-            }
-          ]
-        },
-        "options": {}
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.body.query, top_k: $json.body.top_k || 3 }) }}",
+        "options": {
+          "timeout": 120000
+        }
       },
       "id": "http-rag-query",
       "name": "RAG Query API",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
+      "typeVersion": 4.2,
       "position": [450, 300]
     },
     {
@@ -48,7 +39,7 @@
       "id": "respond-to-webhook",
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
+      "typeVersion": 1.1,
       "position": [650, 300]
     }
   ],
@@ -70,4 +61,3 @@
   "updatedAt": "2024-01-01T00:00:00.000Z",
   "versionId": "1"
 }
-

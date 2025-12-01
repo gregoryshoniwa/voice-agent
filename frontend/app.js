@@ -1,6 +1,12 @@
 const API_URL = window.location.origin + '/api';
 const AUTH_KEY = 'voice_agent_auth';
 
+// State
+let isRecording = false;
+let mediaRecorder = null;
+let audioChunks = [];
+let currentConversationId = null;
+
 // Check authentication on load
 window.addEventListener('DOMContentLoaded', () => {
     if (isAuthenticated()) {
@@ -75,9 +81,240 @@ function showSection(section) {
         sec.classList.remove('active');
     });
     document.getElementById(section + 'Section').classList.add('active');
+
+    // Load data for the section
+    if (section === 'rag') {
+        loadDocuments();
+    } else if (section === 'history') {
+        loadConversations();
+    }
 }
 
-// Document Management
+// ==================== CHAT FUNCTIONALITY ====================
+
+function handleChatSubmit(event) {
+    event.preventDefault();
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    input.value = '';
+    sendMessage(message);
+}
+
+async function sendMessage(message) {
+    const messagesContainer = document.getElementById('chatMessages');
+    const statusDiv = document.getElementById('chatStatus');
+    const sendBtn = document.getElementById('sendBtn');
+    
+    // Clear welcome message if present
+    const welcomeMsg = messagesContainer.querySelector('.welcome-message');
+    if (welcomeMsg) {
+        welcomeMsg.remove();
+    }
+    
+    // Add user message
+    addChatMessage(message, 'user');
+    
+    // Show typing indicator
+    const typingIndicator = document.createElement('div');
+    typingIndicator.className = 'typing-indicator';
+    typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+    messagesContainer.appendChild(typingIndicator);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Update status
+    statusDiv.textContent = 'Processing...';
+    statusDiv.className = 'chat-status processing';
+    sendBtn.disabled = true;
+    
+    try {
+        const response = await fetch(`${API_URL}/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: message,
+                conversation_id: currentConversationId
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to get response');
+        }
+        
+        const data = await response.json();
+        
+        // Remove typing indicator
+        typingIndicator.remove();
+        
+        // Add assistant message
+        addChatMessage(data.answer, 'assistant', data.context_count);
+        
+        // Update conversation ID
+        if (data.conversation_id) {
+            currentConversationId = data.conversation_id;
+        }
+        
+        // Update status
+        statusDiv.textContent = 'Ready';
+        statusDiv.className = 'chat-status';
+        
+    } catch (error) {
+        console.error('Chat error:', error);
+        typingIndicator.remove();
+        addChatMessage('Sorry, I encountered an error. Please try again.', 'error');
+        statusDiv.textContent = 'Error';
+        statusDiv.className = 'chat-status error';
+    } finally {
+        sendBtn.disabled = false;
+    }
+}
+
+function addChatMessage(content, type, contextCount = null) {
+    const messagesContainer = document.getElementById('chatMessages');
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${type}`;
+    
+    let html = `<div class="message-content">${escapeHtml(content)}</div>`;
+    html += `<div class="message-time">${new Date().toLocaleTimeString()}</div>`;
+    
+    if (type === 'assistant' && contextCount !== null) {
+        html += `<div class="context-info">📚 Based on ${contextCount} document(s)</div>`;
+    }
+    
+    messageDiv.innerHTML = html;
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Voice Recording
+async function toggleVoiceRecording() {
+    const btn = document.getElementById('voiceBtn');
+    
+    if (!isRecording) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+            
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                await sendVoiceMessage(audioBlob);
+                stream.getTracks().forEach(track => track.stop());
+            };
+            
+            mediaRecorder.start();
+            isRecording = true;
+            btn.classList.add('recording');
+            btn.querySelector('.voice-text').textContent = 'Recording... Click to Stop';
+            
+        } catch (error) {
+            console.error('Microphone access denied:', error);
+            alert('Please allow microphone access to use voice input.');
+        }
+    } else {
+        mediaRecorder.stop();
+        isRecording = false;
+        btn.classList.remove('recording');
+        btn.querySelector('.voice-text').textContent = 'Hold to Speak';
+    }
+}
+
+async function sendVoiceMessage(audioBlob) {
+    const messagesContainer = document.getElementById('chatMessages');
+    const statusDiv = document.getElementById('chatStatus');
+    
+    // Clear welcome message if present
+    const welcomeMsg = messagesContainer.querySelector('.welcome-message');
+    if (welcomeMsg) {
+        welcomeMsg.remove();
+    }
+    
+    // Show processing indicator
+    const typingIndicator = document.createElement('div');
+    typingIndicator.className = 'typing-indicator';
+    typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+    messagesContainer.appendChild(typingIndicator);
+    
+    statusDiv.textContent = 'Processing voice...';
+    statusDiv.className = 'chat-status processing';
+    
+    try {
+        // Convert blob to base64
+        const base64Audio = await blobToBase64(audioBlob);
+        
+        const response = await fetch(`${API_URL}/voice-chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                audio_data: base64Audio,
+                conversation_id: currentConversationId
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Voice processing failed');
+        }
+        
+        const data = await response.json();
+        
+        typingIndicator.remove();
+        
+        // Add user's transcribed message
+        if (data.user_text) {
+            addChatMessage(data.user_text, 'user');
+        }
+        
+        // Add assistant response
+        addChatMessage(data.answer, 'assistant', data.context_count);
+        
+        // Update conversation ID
+        if (data.conversation_id) {
+            currentConversationId = data.conversation_id;
+        }
+        
+        statusDiv.textContent = 'Ready';
+        statusDiv.className = 'chat-status';
+        
+    } catch (error) {
+        console.error('Voice chat error:', error);
+        typingIndicator.remove();
+        addChatMessage('Sorry, I couldn\'t process your voice. Please try again or type your question.', 'error');
+        statusDiv.textContent = 'Error';
+        statusDiv.className = 'chat-status error';
+    }
+}
+
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+// ==================== DOCUMENT MANAGEMENT ====================
+
 async function loadDocuments() {
     const listDiv = document.getElementById('documentsList');
     listDiv.innerHTML = '<div class="loading">Loading documents...</div>';
@@ -102,10 +339,10 @@ async function loadDocuments() {
         listDiv.innerHTML = documents.map(doc => `
             <div class="document-item">
                 <div class="document-info">
-                    <div class="document-name">${doc.file_name || doc.name}</div>
+                    <div class="document-name">${doc.file_name || doc.name || 'Unnamed'}</div>
                     <div class="document-meta">
-                        Type: ${doc.file_type || doc.type} | 
-                        Uploaded: ${formatDate(doc.indexed_at || doc.created_at)}
+                        Type: ${doc.file_type || doc.type || 'Unknown'} | 
+                        Indexed: ${formatDate(doc.indexed_at || doc.created_at)}
                     </div>
                 </div>
                 <button class="btn-danger" onclick="deleteDocument('${doc.id}')">Delete</button>
@@ -113,7 +350,7 @@ async function loadDocuments() {
         `).join('');
     } catch (error) {
         console.error('Error loading documents:', error);
-        listDiv.innerHTML = '<div class="error-message show">Error loading documents</div>';
+        listDiv.innerHTML = '<div class="error-message show">Error loading documents. The RAG system may not be initialized yet.</div>';
     }
 }
 
@@ -140,17 +377,17 @@ async function handleFileUpload(event) {
             }
         }
 
-        statusDiv.textContent = `Successfully uploaded ${files.length} file(s)!`;
+        statusDiv.textContent = `Successfully uploaded ${files.length} file(s)! Processing will begin shortly.`;
         statusDiv.className = 'status-message show success';
         
         // Clear file input
         event.target.value = '';
         
-        // Reload documents
+        // Reload documents after a delay (to allow for processing)
         setTimeout(() => {
             loadDocuments();
             statusDiv.classList.remove('show');
-        }, 2000);
+        }, 3000);
     } catch (error) {
         console.error('Error uploading file:', error);
         statusDiv.textContent = `Error: ${error.message}`;
@@ -175,7 +412,8 @@ async function deleteDocument(id) {
     }
 }
 
-// Conversation Management
+// ==================== CONVERSATION MANAGEMENT ====================
+
 async function loadConversations() {
     const listDiv = document.getElementById('conversationsList');
     listDiv.innerHTML = '<div class="loading">Loading conversations...</div>';
@@ -191,7 +429,7 @@ async function loadConversations() {
                 <div class="empty-state">
                     <div class="empty-state-icon">💬</div>
                     <p>No conversations yet</p>
-                    <p>Start a conversation to see it here</p>
+                    <p>Start a conversation in the Chat tab to see it here</p>
                 </div>
             `;
             return;
@@ -235,7 +473,7 @@ async function toggleConversationDetails(convId, btn) {
             if (conversation.messages && conversation.messages.length > 0) {
                 details.innerHTML = conversation.messages.map(msg => `
                     <div class="message ${msg.role}">
-                        <div>${msg.content}</div>
+                        <div>${escapeHtml(msg.content)}</div>
                         <div class="message-time">${formatDate(msg.created_at)}</div>
                     </div>
                 `).join('');
@@ -259,10 +497,13 @@ function refreshConversations() {
     loadConversations();
 }
 
-// Utility
+// ==================== UTILITIES ====================
+
 function formatDate(timestamp) {
     if (!timestamp) return 'Unknown';
-    const date = new Date(timestamp * 1000 || timestamp);
+    // Handle both Unix timestamps and ISO strings
+    const date = typeof timestamp === 'number' 
+        ? new Date(timestamp * 1000) 
+        : new Date(timestamp);
     return date.toLocaleString();
 }
-

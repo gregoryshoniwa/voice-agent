@@ -560,12 +560,13 @@ services:
 
   # TTS Service - Using Coqui TTS (Docker Hub)
   piper:
-    image: synesthesiam/coqui-tts:latest
+    image: ghcr.io/coqui-ai/tts:latest
     container_name: piper-tts
     ports:
       - "5500:5002"
     environment:
       - COQUI_TOS_AGREED=1
+    command: ["--model_name", "tts_models/en/ljspeech/tacotron2-DDC", "--port", "5002"]
     restart: unless-stopped
     networks:
       - supabase_network
