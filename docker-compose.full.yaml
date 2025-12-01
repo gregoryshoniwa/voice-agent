@@ -558,15 +558,15 @@ services:
     networks:
       - supabase_network
 
-  # TTS Service - Lightweight Piper TTS
-  piper:
-    build: ./piper-tts
-    container_name: piper-tts
-    ports:
-      - "5500:5002"
-    restart: unless-stopped
-    networks:
-      - supabase_network
+  # TTS Service - Lightweight Piper TTS (optional - comment out if causing issues)
+  # piper:
+  #   build: ./piper-tts
+  #   container_name: piper-tts
+  #   ports:
+  #     - "5500:5002"
+  #   restart: unless-stopped
+  #   networks:
+  #     - supabase_network
 
   rag-indexer:
     build: ./rag-indexer
@@ -609,8 +609,8 @@ services:
     depends_on:
       - ollama
       - whisper
-      - piper
       - n8n
+      # - piper  # TTS is optional
 
 volumes:
   n8n_data:

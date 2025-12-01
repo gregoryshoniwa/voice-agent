@@ -197,7 +197,7 @@ async def voice_chat(request: VoiceChatRequest):
     """Voice-based chat: STT → RAG → Response"""
     try:
         # Step 1: Transcribe audio
-            audio_data = base64.b64decode(request.audio_data)
+        audio_data = base64.b64decode(request.audio_data)
         
         # Send to Whisper
         files = {"file": ("audio.wav", audio_data, "audio/wav")}
