@@ -17,9 +17,8 @@ fi
 
 if [ -n "$SERVICE" ]; then
     echo "Showing logs for: $SERVICE"
-    $COMPOSE_CMD -f docker-compose.full.yaml logs -f "$SERVICE"
+    $COMPOSE_CMD -f docker-compose.full.yaml --env-file supabase-project/.env logs -f "$SERVICE"
 else
     echo "Showing logs for all services (Ctrl+C to exit)"
-    $COMPOSE_CMD -f docker-compose.full.yaml logs -f
+    $COMPOSE_CMD -f docker-compose.full.yaml --env-file supabase-project/.env logs -f
 fi
-
