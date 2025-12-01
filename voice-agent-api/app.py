@@ -408,12 +408,28 @@ async def list_documents():
     """List all indexed documents"""
     try:
         if not supabase:
+            print("[DOCUMENTS] Supabase client not initialized")
             return []
-        response = supabase.table("documents").select("id, file_name, file_type, indexed_at").order("indexed_at", desc=True).execute()
-        return response.data if response.data else []
+        
+        print("[DOCUMENTS] Fetching documents from Supabase...")
+        response = supabase.table("documents").select("id, file_name, file_type, file_path, indexed_at").order("indexed_at", desc=True).execute()
+        
+        docs = response.data if response.data else []
+        print(f"[DOCUMENTS] Found {len(docs)} documents")
+        
+        # Ensure all fields are present
+        for doc in docs:
+            if not doc.get("file_name"):
+                doc["file_name"] = doc.get("file_path", "").split("/")[-1] if doc.get("file_path") else "Unknown"
+            if not doc.get("file_type"):
+                doc["file_type"] = "." + doc.get("file_name", "").split(".")[-1] if "." in doc.get("file_name", "") else "unknown"
+        
+        return docs
     except Exception as e:
         print(f"[DOCUMENTS] Error listing: {e}")
-        # Return empty list instead of error (table might not exist yet)
+        import traceback
+        traceback.print_exc()
+        # Return error info for debugging
         return []
 
 

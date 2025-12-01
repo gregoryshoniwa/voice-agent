@@ -320,17 +320,27 @@ async function loadDocuments() {
     listDiv.innerHTML = '<div class="loading">Loading documents...</div>';
 
     try {
+        console.log('Fetching documents from:', `${API_URL}/documents`);
         const response = await fetch(`${API_URL}/documents`);
-        if (!response.ok) throw new Error('Failed to load documents');
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API error:', response.status, errorText);
+            throw new Error(`API error: ${response.status}`);
+        }
 
         const documents = await response.json();
+        console.log('Documents received:', documents);
         
-        if (documents.length === 0) {
+        if (!documents || documents.length === 0) {
             listDiv.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">📄</div>
                     <p>No documents uploaded yet</p>
                     <p>Click "Upload Document" to get started</p>
+                    <p style="font-size: 12px; margin-top: 10px; color: #999;">
+                        If you've uploaded documents, check that the RAG indexer has processed them.
+                    </p>
                 </div>
             `;
             return;
@@ -350,7 +360,12 @@ async function loadDocuments() {
         `).join('');
     } catch (error) {
         console.error('Error loading documents:', error);
-        listDiv.innerHTML = '<div class="error-message show">Error loading documents. The RAG system may not be initialized yet.</div>';
+        listDiv.innerHTML = `
+            <div class="error-message show">
+                Error loading documents: ${error.message}<br>
+                <small>Check browser console (F12) for details.</small>
+            </div>
+        `;
     }
 }
 
