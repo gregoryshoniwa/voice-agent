@@ -601,7 +601,7 @@ services:
       WHISPER_URL: "http://whisper:9000"
       PIPER_URL: "http://piper:5002"
       N8N_WEBHOOK_URL: "http://n8n:5678/webhook"
-      LLM_MODEL: "llama3.2" # Change to your preferred Ollama model
+      LLM_MODEL: "llama3.2:1b" # Smaller model, faster on CPU
       EMBEDDING_MODEL: "nomic-embed-text" # Ollama embedding model
     restart: unless-stopped
     networks:

@@ -182,10 +182,10 @@ setup_database() {
 }
 
 pull_ollama_models() {
-    print_info "Pulling Ollama models (this may take 10-20 minutes)..."
+    print_info "Pulling Ollama models (this may take 5-10 minutes)..."
     
-    echo "  Pulling llama3.2..."
-    docker exec ollama ollama pull llama3.2 || print_warning "Failed to pull llama3.2"
+    echo "  Pulling llama3.2:1b (smaller, faster on CPU)..."
+    docker exec ollama ollama pull llama3.2:1b || print_warning "Failed to pull llama3.2:1b"
     
     echo "  Pulling nomic-embed-text..."
     docker exec ollama ollama pull nomic-embed-text || print_warning "Failed to pull nomic-embed-text"
