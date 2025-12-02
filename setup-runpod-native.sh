@@ -286,7 +286,7 @@ cat > "$SCRIPT_DIR/.env.runpod" << EOF
 # RunPod Native Configuration
 DATABASE_URL=postgresql://voiceagent:voiceagent123@localhost:5432/voiceagent
 OLLAMA_BASE_URL=http://localhost:11434
-LLM_MODEL=llama3.2:1b
+LLM_MODEL=gpt-oss:latest
 EMBEDDING_MODEL=nomic-embed-text
 
 # Directories

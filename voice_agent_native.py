@@ -46,7 +46,7 @@ app.add_middleware(
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://voiceagent:voiceagent123@localhost:5432/voiceagent")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 WHISPER_URL = os.getenv("WHISPER_URL", "http://localhost:9000")
-LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:1b")
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-oss:latest")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 DOCUMENTS_DIR = Path(os.getenv("DOCUMENTS_DIR", "./documents"))
 FRONTEND_DIR = Path(os.getenv("FRONTEND_DIR", "./frontend"))
