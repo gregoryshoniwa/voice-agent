@@ -363,23 +363,28 @@ echo "    RAG Indexer PID: $RAG_PID"
 service nginx stop 2>/dev/null || true
 pkill nginx 2>/dev/null || true
 
-# Start Voice Agent API
+# Start Voice Agent API in background (detached mode)
 echo -e "${BLUE}[i]${NC} Starting Voice Agent API on port 80..."
-echo ""
-
-# Run in foreground so we can see logs
-python3 -m uvicorn voice_agent_native:app --host 0.0.0.0 --port 80 --reload &
+nohup python3 -m uvicorn voice_agent_native:app --host 0.0.0.0 --port 80 > /tmp/voice-agent.log 2>&1 &
 API_PID=$!
+echo "    Voice Agent API PID: $API_PID"
 
 sleep 3
 
+# Verify API is running
+if curl -s http://localhost:80/api/health > /dev/null 2>&1; then
+    echo -e "    ${GREEN}✓ API is running${NC}"
+else
+    echo -e "    ${YELLOW}! API may still be starting...${NC}"
+fi
+
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║${NC}  ${GREEN}✓ All Services Started!${NC}                                 ${CYAN}║${NC}"
+echo -e "${CYAN}║${NC}  ${GREEN}✓ All Services Started (Detached Mode)${NC}                  ${CYAN}║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${GREEN}Access URLs:${NC}"
-echo "  • Frontend:     http://localhost:80"
+echo "  • Frontend:     http://localhost:80  (or http://localhost)"
 echo "  • API Docs:     http://localhost:80/docs"
 echo "  • API Health:   http://localhost:80/api/health"
 echo "  • Ollama:       http://localhost:11434"
@@ -389,17 +394,19 @@ echo "  • Username: admin"
 echo "  • Password: admin"
 echo ""
 echo -e "${GREEN}Logs:${NC}"
+echo "  • Voice Agent:  tail -f /tmp/voice-agent.log"
 echo "  • Ollama:       tail -f /tmp/ollama.log"
 echo "  • RAG Indexer:  tail -f /tmp/rag-indexer.log"
 echo ""
-echo -e "${GREEN}To stop services:${NC}"
-echo "  • Press Ctrl+C or run: ./stop-services.sh"
+echo -e "${GREEN}Check status:${NC}"
+echo "  ./check-status.sh"
+echo ""
+echo -e "${GREEN}Stop services:${NC}"
+echo "  ./stop-services.sh"
 echo ""
 echo -e "${BLUE}[i]${NC} Configure a public endpoint in RunPod for port 80 to access externally"
 echo ""
-
-# Wait for API process
-wait $API_PID
+echo -e "${GREEN}All services are running in the background. Terminal is free to use.${NC}"
 STARTEOF
 
 chmod +x "$SCRIPT_DIR/start-services.sh"
@@ -411,11 +418,20 @@ cat > "$SCRIPT_DIR/stop-services.sh" << 'STOPEOF'
 echo "Stopping AI Voice Agent services..."
 
 # Kill processes
+echo "  Stopping Voice Agent API..."
 pkill -f "uvicorn voice_agent_native" 2>/dev/null || true
+
+echo "  Stopping RAG Indexer..."
 pkill -f "rag_indexer_native" 2>/dev/null || true
+
+echo "  Stopping Ollama..."
 pkill ollama 2>/dev/null || true
 
-echo "Services stopped."
+sleep 2
+echo ""
+echo "✓ All services stopped."
+echo ""
+echo "To restart: ./start-services.sh"
 STOPEOF
 
 chmod +x "$SCRIPT_DIR/stop-services.sh"
