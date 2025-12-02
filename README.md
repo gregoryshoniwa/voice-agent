@@ -1,236 +1,134 @@
-# AI Voice Agent with n8n, Supabase, and Ollama
+# AI Voice Agent - RunPod Native
 
-This repository contains a complete AI voice agent system that uses RAG (Retrieval-Augmented Generation) to answer questions based on your documents. The system orchestrates speech-to-text, RAG queries, LLM generation, and text-to-speech using n8n workflows.
+An intelligent voice/text chat agent with RAG (Retrieval Augmented Generation) capabilities. Ask questions and get answers from your uploaded documents.
 
-## 🎯 What This Does
+## Features
 
-**Voice Agent Flow**: User speaks → Whisper (STT) → n8n → RAG Query → Ollama (LLM) → Piper (TTS) → User hears answer
+- 🎤 **Voice & Text Chat** - Ask questions via voice or text
+- 📄 **Document RAG** - Upload PDFs, TXT, DOCX files for context-aware answers
+- 🧠 **Local LLM** - Uses Ollama with Llama 3.2 (runs on GPU)
+- 🔍 **Vector Search** - PostgreSQL + pgvector for semantic document search
+- 🖥️ **Web Interface** - Clean dashboard for chat and document management
 
-The system:
-- Listens to voice input and converts to text
-- Searches your documents using vector similarity
-- Generates intelligent answers using LLM with document context
-- Converts the answer back to speech
+## Quick Start (RunPod)
 
-## 🚀 Quick Start
+### 1. Create a RunPod GPU Pod
 
-1. **Set up environment variables:**
-   ```bash
-   cp supabase-project/.env.example supabase-project/.env
-   # Edit supabase-project/.env with your secrets
-   ```
+- Go to [RunPod.io](https://runpod.io)
+- Create a new pod with GPU (RTX A5000, A40, etc.)
+- Use Ubuntu/PyTorch template
 
-2. **Prepare directories:**
-   ```bash
-   mkdir -p piper/models documents n8n-workflows
-   ```
-
-3. **Start all services:**
-   ```bash
-   docker compose -f docker-compose.full.yaml --env-file supabase-project/.env up -d
-   ```
-
-4. **Set up Supabase:**
-   - Open Supabase Studio at http://localhost:8000
-   - Go to SQL Editor
-   - Run the SQL from `supabase-project/volumes/db/rag-setup.sql`
-   - Run the SQL from `supabase-project/volumes/db/conversations-setup.sql`
-
-5. **Pull Ollama models:**
-   ```bash
-   docker exec ollama ollama pull llama3.2
-   docker exec ollama ollama pull nomic-embed-text
-   ```
-
-6. **Import n8n workflows:**
-   - Open n8n at http://localhost:5678
-   - Import workflows from `n8n-workflows/` folder
-
-7. **Access the dashboard:**
-   - Open http://localhost:3001 in your browser
-   - Login with username: `admin`, password: `admin`
-   - Upload documents in the RAG section
-   - View conversation history in the Conversation section
-
-## 📋 Services Included
-
-### Core Services
-- **n8n** (Port 5678): Workflow orchestration
-- **Supabase** (Port 8000): Vector storage & database
-- **Ollama** (Port 11434): LLM & embeddings
-
-### AI/ML Services
-- **Whisper** (Port 9000): Speech-to-text
-- **Piper** (Port 5500): Text-to-speech
-- **RAG Indexer**: Automatic document indexing
-- **Voice Agent API** (Port 3001): API for voice agent operations
-
-## 🏗️ Architecture
-
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation.
-
-**Simple Flow:**
-```
-Audio Input → Whisper → n8n → Voice Agent API → RAG (Supabase) → Ollama → Piper → Audio Output
-```
-
-## 📁 Project Structure
-
-```
-.
-├── docker-compose.full.yaml    # Unified compose file (use this!)
-├── ARCHITECTURE.md             # Detailed architecture docs
-├── supabase-project/
-│   ├── .env                    # Environment variables (DO NOT COMMIT)
-│   ├── .env.example           # Template file
-│   └── volumes/
-│       └── db/
-│           └── rag-setup.sql  # RAG database setup
-├── rag-indexer/               # Document indexing service
-│   ├── app.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── voice-agent-api/           # Voice agent API service
-│   ├── app.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── n8n-workflows/            # n8n workflow configurations
-│   ├── voice-agent-main.json
-│   ├── rag-query.json
-│   └── README.md
-├── documents/                 # Documents to index (add your files here)
-├── piper/
-│   └── models/               # Piper TTS voice models
-└── README.md                 # This file
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Key variables in `supabase-project/.env`:
-- `SERVICE_ROLE_KEY` - Supabase service role key
-- `ANON_KEY` - Supabase anonymous key
-- `POSTGRES_PASSWORD` - Database password
-
-### Model Configuration
-
-In `docker-compose.full.yaml`:
-- `LLM_MODEL` - Ollama LLM model (default: `llama3.2`)
-- `EMBEDDING_MODEL` - Ollama embedding model (default: `nomic-embed-text`)
-- `PIPER_VOICE` - Piper voice model (default: `en_US-lessac-medium`)
-
-## 📖 Usage
-
-### Via n8n Webhook
+### 2. Connect via SSH and Clone
 
 ```bash
-curl -X POST http://localhost:5678/webhook/voice-agent \
-  -H "Content-Type: application/json" \
-  -d '{
-    "audio_url": "https://example.com/audio.wav"
-  }'
+cd /workspace
+git clone https://github.com/gregoryshoniwa/voice-agent.git
+cd voice-agent
 ```
 
-### Direct API Call
+### 3. Run Setup
 
 ```bash
-curl -X POST http://localhost:3001/voice-agent/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "audio_url": "https://example.com/audio.wav"
-  }'
+chmod +x setup-runpod-native.sh
+./setup-runpod-native.sh
 ```
 
-### RAG Query Only
+This installs:
+- PostgreSQL with pgvector
+- Ollama with GPU support
+- LLM model (llama3.2:1b)
+- Embedding model (nomic-embed-text)
+- Python dependencies
+
+### 4. Start Services
 
 ```bash
-curl -X POST http://localhost:3001/rag-query \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "What is our refund policy?",
-    "top_k": 3
-  }'
+./start-services.sh
 ```
 
-## 🛠️ Customization
+### 5. Access the App
 
-### Change LLM Model
+- Configure a public endpoint for port **80** in RunPod console
+- Or access via `http://localhost:80` from within the pod
 
-1. Pull new model: `docker exec ollama ollama pull <model-name>`
-2. Update `LLM_MODEL` in docker-compose
-3. Restart: `docker compose restart voice-agent-api`
+**Default Login:** admin / admin
 
-### Customize n8n Workflows
+## Project Structure
 
-- Edit workflows in n8n UI at http://localhost:5678
-- Add custom logic, filtering, logging, etc.
-- Export workflows to `n8n-workflows/` folder
+```
+voice-agent/
+├── voice_agent_native.py    # Main API server
+├── rag_indexer_native.py    # Document indexer with embeddings
+├── setup-runpod-native.sh   # Setup script for RunPod
+├── frontend/                # Web interface
+│   ├── index.html
+│   ├── app.js
+│   └── styles.css
+├── documents/               # Upload directory
+├── .env.runpod             # Configuration (created by setup)
+└── README.md
+```
 
-### Add More Documents
+## API Endpoints
 
-- Place PDF, TXT, or MD files in `./documents/` folder
-- RAG indexer automatically detects and indexes them
-- Documents are searchable immediately after indexing
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check |
+| `/api/status` | GET | Service status |
+| `/api/chat` | POST | Text chat with RAG |
+| `/api/voice-chat` | POST | Voice chat (audio input) |
+| `/api/rag-query` | POST | Direct RAG query |
+| `/api/documents` | GET | List documents |
+| `/api/documents/upload` | POST | Upload document |
+| `/api/conversations` | GET | List conversations |
 
-## 🔍 Access Services
+## Configuration
 
-- **Frontend Dashboard**: http://localhost:3001
-  - Landing page → Login (admin/admin) → Dashboard
-  - RAG management and Conversation history
-- **n8n**: http://localhost:5678
-  - Username: `admin`
-  - Password: `changeme123` (change this!)
-- **Supabase Studio**: http://localhost:8000
-- **Voice Agent API**: http://localhost:3001/api/docs (API documentation)
-- **Whisper API**: http://localhost:9000
-- **Piper API**: http://localhost:5500
-- **Ollama API**: http://localhost:11434
+Edit `.env.runpod`:
 
-## 🛑 Stopping Services
+```env
+DATABASE_URL=postgresql://voiceagent:voiceagent123@localhost:5432/voiceagent
+OLLAMA_BASE_URL=http://localhost:11434
+LLM_MODEL=llama3.2:1b
+EMBEDDING_MODEL=nomic-embed-text
+```
+
+## Useful Commands
 
 ```bash
-docker compose -f docker-compose.full.yaml down
+# Check service status
+./check-status.sh
+
+# Stop all services
+./stop-services.sh
+
+# View logs
+tail -f /tmp/ollama.log
+tail -f /tmp/rag-indexer.log
+
+# List Ollama models
+ollama list
+
+# Pull a different model
+ollama pull llama3.2  # Larger, better quality
 ```
 
-## 🔄 Resetting Everything
+## Supported Document Types
 
-```bash
-docker compose -f docker-compose.full.yaml down -v
-rm -rf supabase-project/volumes/db/data/*
-docker compose -f docker-compose.full.yaml --env-file supabase-project/.env up -d
-```
+- PDF (.pdf)
+- Text (.txt)
+- Markdown (.md)
+- Word Documents (.docx)
+- JSON (.json)
+- CSV (.csv)
 
-## ⚠️ Important Notes
+## Requirements
 
-- **Never commit `.env` files** - they contain secrets
-- Database data is stored in `supabase-project/volumes/db/data/` (excluded from git)
-- Storage files are in Docker volume `storage_data` (not in git)
-- All services share the `supabase_network` network for easy communication
-- **Ollama models** must be pulled before first use
-- Place documents in `./documents/` folder for automatic indexing
-- Download Piper voice models to `./piper/models/` if needed
+- Python 3.10+
+- PostgreSQL with pgvector extension
+- Ollama
+- NVIDIA GPU (recommended for faster inference)
 
-## 📚 Documentation
+## License
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Detailed architecture and data flow
-- [n8n-workflows/README.md](./n8n-workflows/README.md) - n8n workflow documentation
-- [rag-indexer/README.md](./rag-indexer/README.md) - RAG indexer documentation
-
-## 🐛 Troubleshooting
-
-### Ollama models not found
-```bash
-docker exec ollama ollama list  # Check available models
-docker exec ollama ollama pull llama3.2  # Pull required model
-```
-
-### RAG indexer not working
-- Check Ollama is running: `docker ps | grep ollama`
-- Check logs: `docker logs rag-indexer`
-- Verify documents folder exists: `ls -la documents/`
-
-### n8n workflows not triggering
-- Check webhook URL is correct
-- Verify n8n is accessible: http://localhost:5678
-- Check workflow is active in n8n UI
+MIT
