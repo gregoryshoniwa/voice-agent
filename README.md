@@ -96,10 +96,10 @@ TTS_VOICE=en-US-AriaNeural
 
 ### System Prompt (Batsi Personality)
 
-The agent uses a built-in system prompt that gives it the personality of **Batsi** - a helpful Zimbabwean banking support agent for Steward Bank. This prompt includes:
+The agent uses a built-in system prompt that gives it the personality of **Batsi** - a helpful Zimbabwean banking support agent for TN CyberTech Bank. This prompt includes:
 
 - Personality traits (smart, approachable, empathetic)
-- Knowledge of Steward Bank services
+- Knowledge of TN CyberTech Bank services
 - Zimbabwean cultural context
 - Professional tone guidelines
 - Safety guardrails
