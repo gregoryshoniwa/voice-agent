@@ -719,3 +719,60 @@ body {
         gap: 15px;
     }
 }
+
+/* Voice Response Features */
+.message-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+}
+
+.btn-speak {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-light);
+    transition: all 0.2s ease;
+}
+
+.btn-speak:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.btn-speak:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.chat-status.speaking {
+    color: var(--success);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Voice recording animation */
+.btn-voice.recording {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    animation: recording-pulse 1.5s infinite;
+}
+
+@keyframes recording-pulse {
+    0%, 100% { 
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+    }
+    50% { 
+        box-shadow: 0 0 0 15px rgba(239, 68, 68, 0);
+    }
+}

@@ -10,6 +10,9 @@ pypdf>=4.0.0
 watchdog>=3.0.0
 numpy>=1.26.0
 
+# Text-to-Speech (for voice responses)
+edge-tts>=6.1.0
+
 # Optional: Voice recognition (requires more memory)
 # openai-whisper
 

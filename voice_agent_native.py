@@ -8,6 +8,8 @@ import os
 import time
 import shutil
 import base64
+import asyncio
+import tempfile
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +21,15 @@ from typing import Optional, List
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import json
+
+# TTS support
+try:
+    import edge_tts
+    TTS_AVAILABLE = True
+    print("[VOICE-AGENT] edge-tts available for voice responses")
+except ImportError:
+    TTS_AVAILABLE = False
+    print("[VOICE-AGENT] edge-tts not installed - voice responses disabled")
 
 app = FastAPI(title="Voice Agent API - RunPod Native", version="2.0")
 
@@ -39,6 +50,10 @@ LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2:1b")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 DOCUMENTS_DIR = Path(os.getenv("DOCUMENTS_DIR", "./documents"))
 FRONTEND_DIR = Path(os.getenv("FRONTEND_DIR", "./frontend"))
+
+# TTS Configuration - Microsoft Edge voices
+TTS_VOICE = os.getenv("TTS_VOICE", "en-US-AriaNeural")  # Natural female voice
+# Other options: en-US-GuyNeural (male), en-GB-SoniaNeural (British), en-AU-NatashaNeural (Australian)
 
 DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -111,6 +126,12 @@ class ChatRequest(BaseModel):
 class VoiceChatRequest(BaseModel):
     audio_data: str
     conversation_id: Optional[str] = None
+    return_audio: bool = True  # Return TTS audio response
+
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: Optional[str] = None  # Override default voice
 
 
 # ==================== Health & Status ====================
@@ -211,9 +232,74 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def text_to_speech(text: str, voice: str = None) -> Optional[str]:
+    """Convert text to speech using edge-tts, returns base64 audio"""
+    if not TTS_AVAILABLE:
+        return None
+    
+    try:
+        voice = voice or TTS_VOICE
+        
+        # Create temp file for audio
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            temp_path = f.name
+        
+        # Generate speech
+        communicate = edge_tts.Communicate(text, voice)
+        await communicate.save(temp_path)
+        
+        # Read and encode
+        with open(temp_path, "rb") as f:
+            audio_data = f.read()
+        
+        # Clean up
+        os.unlink(temp_path)
+        
+        return base64.b64encode(audio_data).decode()
+    except Exception as e:
+        print(f"[TTS] Error: {e}")
+        return None
+
+
+@app.post("/api/tts")
+async def tts_endpoint(request: TTSRequest):
+    """Text-to-Speech endpoint"""
+    if not TTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="TTS not available. Install edge-tts.")
+    
+    try:
+        audio_base64 = await text_to_speech(request.text, request.voice)
+        if audio_base64:
+            return {
+                "audio_data": audio_base64,
+                "content_type": "audio/mp3",
+                "voice": request.voice or TTS_VOICE
+            }
+        raise HTTPException(status_code=500, detail="Failed to generate speech")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tts/voices")
+async def list_voices():
+    """List available TTS voices"""
+    voices = [
+        {"id": "en-US-AriaNeural", "name": "Aria (US Female)", "language": "en-US"},
+        {"id": "en-US-GuyNeural", "name": "Guy (US Male)", "language": "en-US"},
+        {"id": "en-US-JennyNeural", "name": "Jenny (US Female)", "language": "en-US"},
+        {"id": "en-GB-SoniaNeural", "name": "Sonia (UK Female)", "language": "en-GB"},
+        {"id": "en-GB-RyanNeural", "name": "Ryan (UK Male)", "language": "en-GB"},
+        {"id": "en-AU-NatashaNeural", "name": "Natasha (AU Female)", "language": "en-AU"},
+        {"id": "en-IN-NeerjaNeural", "name": "Neerja (India Female)", "language": "en-IN"},
+    ]
+    return {"voices": voices, "default": TTS_VOICE, "tts_available": TTS_AVAILABLE}
+
+
 @app.post("/api/voice-chat")
 async def voice_chat(request: VoiceChatRequest):
-    """Voice-based chat: STT → RAG → Response"""
+    """Voice-based chat: STT → RAG → TTS (full voice conversation)"""
     try:
         # Decode audio
         audio_data = base64.b64decode(request.audio_data)
@@ -232,11 +318,10 @@ async def voice_chat(request: VoiceChatRequest):
             result = whisper_response.json()
             user_text = result.get("text", "").strip()
         except Exception as e:
-            print(f"[VOICE-CHAT] Whisper error: {e}")
+            print(f"[VOICE-CHAT] Whisper service error: {e}")
             # Fallback: try local whisper if available
             try:
                 import whisper
-                import tempfile
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                     f.write(audio_data)
                     temp_path = f.name
@@ -251,9 +336,17 @@ async def voice_chat(request: VoiceChatRequest):
         if not user_text:
             return {"error": "No speech detected", "user_text": ""}
         
+        print(f"[VOICE-CHAT] Transcribed: {user_text}")
+        
         # Query RAG
         query_result = await rag_query(QueryRequest(query=user_text))
         answer = query_result["answer"]
+        
+        # Generate TTS audio response if requested
+        audio_response = None
+        if request.return_audio and TTS_AVAILABLE:
+            print(f"[VOICE-CHAT] Generating voice response...")
+            audio_response = await text_to_speech(answer)
         
         # Save conversation
         conversation_id = request.conversation_id
@@ -279,12 +372,20 @@ async def voice_chat(request: VoiceChatRequest):
         except Exception as e:
             print(f"[VOICE-CHAT] DB error: {e}")
         
-        return {
+        response = {
             "conversation_id": conversation_id,
             "user_text": user_text,
             "answer": answer,
-            "context_count": query_result.get("context_count", 0)
+            "context_count": query_result.get("context_count", 0),
+            "tts_available": TTS_AVAILABLE
         }
+        
+        # Include audio response if generated
+        if audio_response:
+            response["audio_response"] = audio_response
+            response["audio_content_type"] = "audio/mp3"
+        
+        return response
     except Exception as e:
         print(f"[VOICE-CHAT] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
