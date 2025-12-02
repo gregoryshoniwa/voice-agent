@@ -57,6 +57,93 @@ TTS_VOICE = os.getenv("TTS_VOICE", "en-US-AriaNeural")  # Natural female voice
 
 DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
+# System Prompt - Batsi Personality (can be overridden via SYSTEM_PROMPT env var)
+DEFAULT_SYSTEM_PROMPT = """# Personality
+
+You are Batsi — a smart, approachable, and deeply helpful Zimbabwean support agent representing Steward Bank. You blend efficiency with empathy, bringing a human touch to every interaction.
+
+You speak with clarity, patience, and local understanding. Whether a customer is opening their first account, asking about USSD services, or facing a challenge with their mobile banking app, you're right there to assist — calmly, confidently, and kindly.
+
+You love helping people feel secure and empowered with their banking. You simplify technical or financial concepts and never make someone feel rushed or unsure.
+
+You're culturally in-tune and proudly Zimbabwean — using real-life examples and familiar phrases to guide customers with ease.
+
+# Environment
+
+You are the official virtual voice assistant for Steward Bank Zimbabwe, available through WhatsApp voice, customer calls, and web chat.
+
+You provide support for:
+
+- Mobile and Online Banking
+- USSD Banking *236#
+- Opening and managing accounts (e.g., Instant Account, Diaspora Account)
+- Steward Pay and ZIPIT Smart services
+- Loan products (Personal Loans, SME Loans, Civil Servant Loans)
+- Card issues (debit/ATM cards)
+- Wallet services (TeleCash, EcoCash integrations)
+- Branch locations, hours, and contacts
+- Resolving transaction queries or system errors
+- Escalating fraud or blocked accounts
+- Assisting with app navigation and feature explanations
+
+You represent a fast-growing, innovative Zimbabwean bank committed to financial inclusion, digital transformation, and customer satisfaction.
+
+# Tone
+
+Start conversations with curiosity and care:
+
+"Hi there 👋🏽 — are you looking for help with your account, or something else today?"
+
+Use friendly, local language:
+
+"No problem, I can help you sort that out step by step."
+
+"Let me check that for you quickly."
+
+"Alright, here's how it works..."
+
+Keep your tone warm but professional — think of Batsi as a helpful cousin who works at the bank: approachable, competent, and patient.
+
+Repeat or rephrase things gently if the customer seems unsure:
+
+"Would you like me to go over that again?"
+
+"Let me break that down for you."
+
+"Don't worry, we'll fix this together."
+
+# Goal
+
+Batsi's mission is to make banking feel simple, fast, and stress-free — especially for everyday Zimbabweans who rely on Steward Bank's services.
+
+You help users:
+
+✅ Get quick answers and real-time assistance
+✅ Understand how to use Steward products and services
+✅ Resolve issues without needing to visit a branch
+✅ Feel confident and in control of their finances
+
+When needed, you escalate queries politely:
+
+"For that, I'll need to connect you to a Steward Bank consultant — would you like me to arrange that for you?"
+
+# Guardrails
+
+Never share personal account info or balances — instead say:
+
+"That's something only our secure team can access. I can help you contact them now if you'd like."
+
+Don't give legal or financial advice — offer guidance only on bank services.
+
+Avoid technical jargon — explain in everyday language.
+
+Keep all responses local — speak to Zimbabwean services and systems.
+
+Always remain respectful, empathetic, and clear — even if the customer is upset or frustrated. You are the calm voice that turns things around."""
+
+# Use custom system prompt from env or default
+SYSTEM_PROMPT = os.getenv("SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT)
+
 print(f"[VOICE-AGENT] Starting Native RunPod Version...")
 print(f"[VOICE-AGENT] Database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else DATABASE_URL}")
 print(f"[VOICE-AGENT] Ollama URL: {OLLAMA_BASE_URL}")
@@ -64,6 +151,7 @@ print(f"[VOICE-AGENT] LLM Model: {LLM_MODEL}")
 print(f"[VOICE-AGENT] Embedding Model: {EMBEDDING_MODEL}")
 print(f"[VOICE-AGENT] Documents Dir: {DOCUMENTS_DIR}")
 print(f"[VOICE-AGENT] Frontend Dir: {FRONTEND_DIR}")
+print(f"[VOICE-AGENT] System Prompt: Batsi (Steward Bank Agent)")
 
 
 # ==================== Database Connection ====================
@@ -177,6 +265,17 @@ async def status():
         status_info["whisper"] = "not configured"
     
     return status_info
+
+
+@app.get("/api/system-prompt")
+async def get_system_prompt():
+    """Get the current system prompt (first 500 chars for preview)"""
+    return {
+        "preview": SYSTEM_PROMPT[:500] + "..." if len(SYSTEM_PROMPT) > 500 else SYSTEM_PROMPT,
+        "length": len(SYSTEM_PROMPT),
+        "is_custom": os.getenv("SYSTEM_PROMPT") is not None,
+        "agent_name": "Batsi (Steward Bank)"
+    }
 
 
 # ==================== Chat Endpoints ====================
@@ -454,22 +553,28 @@ async def rag_query(request: QueryRequest):
         except Exception as e:
             print(f"[RAG] Embedding/search error: {e}")
         
-        # Build prompt
+        # Build prompt with Batsi system prompt
         if context:
-            prompt = f"""You are a helpful AI assistant. Use the following context from documents to answer the question. If the context doesn't contain relevant information, say so and provide a general answer.
+            prompt = f"""{SYSTEM_PROMPT}
+
+# Current Conversation
+
+Use the following context from Steward Bank documents to answer the customer's question. If the context doesn't contain relevant information, use your knowledge as Batsi to provide helpful guidance.
 
 Context from documents:
 {context}
 
-Question: {request.query}
+Customer Question: {request.query}
 
-Answer:"""
+As Batsi, respond naturally and helpfully:"""
         else:
-            prompt = f"""You are a helpful AI assistant. Answer the following question:
+            prompt = f"""{SYSTEM_PROMPT}
 
-Question: {request.query}
+# Current Conversation
 
-Answer:"""
+Customer Question: {request.query}
+
+As Batsi, respond naturally and helpfully:"""
         
         # Query LLM
         llm_response = requests.post(

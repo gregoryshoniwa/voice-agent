@@ -89,8 +89,30 @@ Edit `.env.runpod`:
 ```env
 DATABASE_URL=postgresql://voiceagent:voiceagent123@localhost:5432/voiceagent
 OLLAMA_BASE_URL=http://localhost:11434
-LLM_MODEL=llama3.2:1b
+LLM_MODEL=gpt-oss:latest
 EMBEDDING_MODEL=nomic-embed-text
+TTS_VOICE=en-US-AriaNeural
+```
+
+### System Prompt (Batsi Personality)
+
+The agent uses a built-in system prompt that gives it the personality of **Batsi** - a helpful Zimbabwean banking support agent for Steward Bank. This prompt includes:
+
+- Personality traits (smart, approachable, empathetic)
+- Knowledge of Steward Bank services
+- Zimbabwean cultural context
+- Professional tone guidelines
+- Safety guardrails
+
+To customize the system prompt, set the `SYSTEM_PROMPT` environment variable in `.env.runpod`:
+
+```env
+SYSTEM_PROMPT="Your custom prompt here..."
+```
+
+Or check the current prompt via API:
+```bash
+curl http://localhost:80/api/system-prompt
 ```
 
 ## Useful Commands
