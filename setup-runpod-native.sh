@@ -265,7 +265,10 @@ pip install -q \
     psycopg2-binary==2.9.9 \
     pypdf==4.0.1 \
     watchdog==3.0.0 \
-    numpy==1.26.3
+    numpy==1.26.3 \
+    edge-tts==6.1.9
+
+print_status "Text-to-Speech (edge-tts) installed for voice responses"
 
 # Install whisper for voice recognition (optional - uses more memory)
 print_info "Installing OpenAI Whisper for voice recognition..."
@@ -290,6 +293,11 @@ EMBEDDING_MODEL=nomic-embed-text
 DOCUMENTS_DIR=$SCRIPT_DIR/documents
 FRONTEND_DIR=$SCRIPT_DIR/frontend
 WATCH_FOLDER=$SCRIPT_DIR/documents
+
+# Text-to-Speech Voice (Microsoft Edge voices)
+# Options: en-US-AriaNeural, en-US-GuyNeural, en-US-JennyNeural
+#          en-GB-SoniaNeural, en-GB-RyanNeural, en-AU-NatashaNeural
+TTS_VOICE=en-US-AriaNeural
 
 # Optional: Whisper service URL (if running separately)
 # WHISPER_URL=http://localhost:9000

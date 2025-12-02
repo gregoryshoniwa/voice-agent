@@ -216,7 +216,7 @@ async function sendMessage(message) {
     }
 }
 
-function addChatMessage(content, type, contextCount = null) {
+function addChatMessage(content, type, contextCount = null, audioData = null) {
     const messagesContainer = document.getElementById('chatMessages');
     
     const messageDiv = document.createElement('div');
@@ -229,9 +229,52 @@ function addChatMessage(content, type, contextCount = null) {
         html += `<div class="context-info">📚 Based on ${contextCount} document(s)</div>`;
     }
     
+    // Add speaker button for assistant messages
+    if (type === 'assistant') {
+        const messageId = `msg-${Date.now()}`;
+        html += `<div class="message-actions">
+            <button class="btn-speak" onclick="speakMessage('${messageId}')" title="Listen to this message">
+                🔊 <span>Listen</span>
+            </button>
+        </div>`;
+        messageDiv.setAttribute('data-message-id', messageId);
+        messageDiv.setAttribute('data-text', content);
+        if (audioData) {
+            messageDiv.setAttribute('data-audio', audioData);
+        }
+    }
+    
     messageDiv.innerHTML = html;
     messagesContainer.appendChild(messageDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// Speak a specific message
+async function speakMessage(messageId) {
+    const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (!messageDiv) return;
+    
+    const btn = messageDiv.querySelector('.btn-speak');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '🔊 <span>Speaking...</span>';
+    btn.disabled = true;
+    
+    try {
+        // Check if we have cached audio
+        const cachedAudio = messageDiv.getAttribute('data-audio');
+        if (cachedAudio) {
+            await playAudioResponse(cachedAudio, 'audio/mp3');
+        } else {
+            // Generate TTS
+            const text = messageDiv.getAttribute('data-text');
+            await speakText(text);
+        }
+    } catch (e) {
+        console.error('Speak error:', e);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
 }
 
 function escapeHtml(text) {
@@ -307,7 +350,8 @@ async function sendVoiceMessage(audioBlob) {
             },
             body: JSON.stringify({
                 audio_data: base64Audio,
-                conversation_id: currentConversationId
+                conversation_id: currentConversationId,
+                return_audio: true  // Request voice response
             })
         });
         
@@ -324,8 +368,15 @@ async function sendVoiceMessage(audioBlob) {
             addChatMessage(data.user_text, 'user');
         }
         
-        // Add assistant response
-        addChatMessage(data.answer, 'assistant', data.context_count);
+        // Add assistant response with audio player if available
+        addChatMessage(data.answer, 'assistant', data.context_count, data.audio_response);
+        
+        // Play audio response automatically
+        if (data.audio_response) {
+            statusDiv.textContent = 'Speaking...';
+            statusDiv.className = 'chat-status speaking';
+            await playAudioResponse(data.audio_response, data.audio_content_type || 'audio/mp3');
+        }
         
         // Update conversation ID
         if (data.conversation_id) {
@@ -341,6 +392,57 @@ async function sendVoiceMessage(audioBlob) {
         addChatMessage('Sorry, I couldn\'t process your voice. Please try again or type your question.', 'error');
         statusDiv.textContent = 'Error';
         statusDiv.className = 'chat-status error';
+    }
+}
+
+// Play audio response from base64
+async function playAudioResponse(base64Audio, contentType = 'audio/mp3') {
+    return new Promise((resolve, reject) => {
+        try {
+            const audioData = atob(base64Audio);
+            const arrayBuffer = new ArrayBuffer(audioData.length);
+            const view = new Uint8Array(arrayBuffer);
+            for (let i = 0; i < audioData.length; i++) {
+                view[i] = audioData.charCodeAt(i);
+            }
+            
+            const blob = new Blob([arrayBuffer], { type: contentType });
+            const audioUrl = URL.createObjectURL(blob);
+            
+            const audio = new Audio(audioUrl);
+            audio.onended = () => {
+                URL.revokeObjectURL(audioUrl);
+                resolve();
+            };
+            audio.onerror = (e) => {
+                URL.revokeObjectURL(audioUrl);
+                reject(e);
+            };
+            audio.play();
+        } catch (e) {
+            console.error('Audio playback error:', e);
+            reject(e);
+        }
+    });
+}
+
+// Text-to-speech for text messages (optional)
+async function speakText(text) {
+    try {
+        const response = await fetch(`${API_URL}/tts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.audio_data) {
+                await playAudioResponse(data.audio_data, data.content_type || 'audio/mp3');
+            }
+        }
+    } catch (e) {
+        console.error('TTS error:', e);
     }
 }
 
