@@ -576,22 +576,60 @@ Customer Question: {request.query}
 
 As Batsi, respond naturally and helpfully:"""
         
-        # Query LLM
-        llm_response = requests.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json={
-                "model": LLM_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.7,
-                    "num_predict": 500
-                }
-            },
-            timeout=120
-        )
-        llm_response.raise_for_status()
-        answer = llm_response.json().get("response", "Sorry, I couldn't generate a response.")
+        # Query LLM - try /api/chat first (newer API), fallback to /api/generate
+        try:
+            # Try /api/chat (preferred for chat interactions)
+            llm_response = requests.post(
+                f"{OLLAMA_BASE_URL}/api/chat",
+                json={
+                    "model": LLM_MODEL,
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": request.query if not context else f"Context:\n{context}\n\nQuestion: {request.query}"}
+                    ],
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.7,
+                        "num_predict": 500
+                    }
+                },
+                timeout=120
+            )
+            if llm_response.status_code == 200:
+                answer = llm_response.json().get("message", {}).get("content", "Sorry, I couldn't generate a response.")
+            else:
+                raise requests.exceptions.HTTPError(f"Ollama /api/chat returned {llm_response.status_code}")
+        except (requests.exceptions.HTTPError, KeyError) as e:
+            print(f"[RAG] /api/chat failed: {e}, trying /api/generate...")
+            # Fallback to /api/generate
+            try:
+                llm_response = requests.post(
+                    f"{OLLAMA_BASE_URL}/api/generate",
+                    json={
+                        "model": LLM_MODEL,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.7,
+                            "num_predict": 500
+                        }
+                    },
+                    timeout=120
+                )
+                llm_response.raise_for_status()
+                answer = llm_response.json().get("response", "Sorry, I couldn't generate a response.")
+            except requests.exceptions.HTTPError as gen_error:
+                # Check if model exists
+                try:
+                    models_resp = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+                    if models_resp.status_code == 200:
+                        available_models = [m.get("name", "") for m in models_resp.json().get("models", [])]
+                        error_msg = f"Model '{LLM_MODEL}' not found. Available models: {', '.join(available_models[:5])}"
+                        print(f"[RAG] {error_msg}")
+                        raise HTTPException(status_code=503, detail=error_msg)
+                except:
+                    pass
+                raise HTTPException(status_code=503, detail=f"Ollama model '{LLM_MODEL}' not available. Error: {gen_error}")
         
         return {
             "answer": answer,
