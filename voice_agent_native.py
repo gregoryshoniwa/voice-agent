@@ -43,7 +43,7 @@ app.add_middleware(
 )
 
 # Configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://voiceagent:voiceagent123@localhost:5432/voiceagent")
+DATABASE_URL = os.getenv("DATABASE_URL")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 WHISPER_URL = os.getenv("WHISPER_URL", "http://localhost:9000")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-oss:latest")
@@ -184,7 +184,6 @@ def init_db():
         return False
 
 
-# Initialize on startup
 @app.on_event("startup")
 async def startup_event():
     init_db()

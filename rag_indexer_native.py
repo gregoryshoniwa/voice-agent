@@ -18,7 +18,7 @@ from pypdf import PdfReader
 import requests
 
 # Configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://voiceagent:voiceagent123@localhost:5432/voiceagent")
+DATABASE_URL = os.getenv("DATABASE_URL")
 WATCH_FOLDER = os.getenv("WATCH_FOLDER", "./documents")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")

@@ -98,7 +98,12 @@ sleep 3
 
 # Create database and user
 print_info "Configuring database..."
-sudo -u postgres psql -c "CREATE USER voiceagent WITH PASSWORD 'voiceagent123';" 2>/dev/null || true
+
+# Generate a random strong password each run
+DB_PASS=$(openssl rand -hex 16)
+
+sudo -u postgres psql -c "CREATE USER voiceagent WITH PASSWORD '${DB_PASS}';" 2>/dev/null || true
+sudo -u postgres psql -c "ALTER USER voiceagent WITH PASSWORD '${DB_PASS}';" 2>/dev/null || true
 sudo -u postgres psql -c "CREATE DATABASE voiceagent OWNER voiceagent;" 2>/dev/null || true
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE voiceagent TO voiceagent;" 2>/dev/null || true
 sudo -u postgres psql -c "ALTER USER voiceagent CREATEDB;" 2>/dev/null || true
@@ -281,10 +286,10 @@ print_status "Python environment ready"
 #################################################
 print_step "Step 7/8: Creating configuration"
 
-# Create .env file
+# Create .env file with randomized DB password
 cat > "$SCRIPT_DIR/.env.runpod" << EOF
 # RunPod Native Configuration
-DATABASE_URL=postgresql://voiceagent:voiceagent123@localhost:5432/voiceagent
+DATABASE_URL=postgresql://voiceagent:${DB_PASS}@localhost:5432/voiceagent
 OLLAMA_BASE_URL=http://localhost:11434
 LLM_MODEL=gpt-oss:latest
 EMBEDDING_MODEL=nomic-embed-text

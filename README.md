@@ -87,7 +87,7 @@ voice-agent/
 Edit `.env.runpod`:
 
 ```env
-DATABASE_URL=postgresql://voiceagent:voiceagent123@localhost:5432/voiceagent
+DATABASE_URL=postgresql://voiceagent:<secure-password>@localhost:5432/voiceagent
 OLLAMA_BASE_URL=http://localhost:11434
 LLM_MODEL=gpt-oss:latest
 EMBEDDING_MODEL=nomic-embed-text
